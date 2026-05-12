@@ -1,0 +1,256 @@
+/**
+ * Directorist – Google Business Importer
+ * Admin stylesheet (replaces all inline styles — audit §4.6)
+ */
+
+/* ── Wrap & header ────────────────────────────────────────────────────────── */
+.dgbi-wrap h1.wp-heading-inline {
+    margin-right: 8px;
+}
+
+.dgbi-version {
+    display: inline-block;
+    font-size: 12px;
+    color: #888;
+    font-weight: 400;
+    vertical-align: middle;
+    background: #f0f0f1;
+    border-radius: 999px;
+    padding: 2px 7px;
+    margin-left: 4px;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.dgbi-tabs {
+    margin-bottom: 16px;
+}
+
+.dgbi-inline-form {
+    margin: 16px 0;
+}
+
+.dgbi-inline-form select {
+    min-width: 240px;
+    margin-left: 8px;
+}
+
+/* ── Tab content ──────────────────────────────────────────────────────────── */
+.dgbi-tab-content {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    padding: 20px 24px;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+/* ── Form fields ──────────────────────────────────────────────────────────── */
+.dgbi-wrap .form-table th {
+    width: 210px;
+    padding: 12px 10px 12px 0;
+}
+
+.dgbi-wrap .form-table .regular-text {
+    width: 400px;
+    max-width: 100%;
+}
+
+/* ── Note paragraph ───────────────────────────────────────────────────────── */
+.dgbi-note {
+    border-left: 3px solid #3858e9;
+    background: #f0f3ff;
+    padding: 8px 12px;
+    margin-top: 12px;
+    margin-bottom: 16px;
+}
+
+/* ── History table ────────────────────────────────────────────────────────── */
+.dgbi-history-table {
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.dgbi-history-table th {
+    font-weight: 600;
+}
+
+.dgbi-errors {
+    cursor: help;
+    color: #d63638;
+    text-decoration: underline dotted;
+}
+
+.dgbi-field-map-table {
+    margin-top: 16px;
+}
+
+.dgbi-field-map-table th,
+.dgbi-field-map-table td {
+    vertical-align: top;
+}
+
+.dgbi-field-map-table code {
+    font-size: 12px;
+}
+
+.dgbi-field-map-table select {
+    min-width: 280px;
+    max-width: 100%;
+}
+
+/* ── Inline notices (settings warning) ───────────────────────────────────── */
+.notice.inline {
+    margin-left: 0;
+}
+
+/* ── Required field indicator ─────────────────────────────────────────────── */
+.required {
+    color: #d63638;
+    margin-left: 2px;
+}
+
+/* ── Progress bar ─────────────────────────────────────────────────────────── */
+/* ── Checklist preview ────────────────────────────────────────────────────── */
+#dgbi-checklist {
+    margin-top: 20px;
+}
+
+.dgbi-checklist-wrap {
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    background: #fff;
+    padding: 16px 20px;
+}
+
+.dgbi-checklist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dgbi-checklist-heading {
+    margin: 0;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.dgbi-checklist-controls {
+    font-size: 12px;
+}
+
+.dgbi-checklist-controls a {
+    text-decoration: none;
+}
+
+.dgbi-place-list {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+.dgbi-place-list li {
+    padding: 7px 12px;
+    border-bottom: 1px solid #f0f0f1;
+    font-size: 13px;
+}
+
+.dgbi-place-list li:last-child {
+    border-bottom: none;
+}
+
+.dgbi-place-list label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.dgbi-place-name {
+    flex: 1;
+}
+
+/* ── Badges ───────────────────────────────────────────────────────────────── */
+.dgbi-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.dgbi-badge-dup {
+    background: #f0f0f1;
+    color: #787c82;
+}
+
+/* ── Checklist footer ─────────────────────────────────────────────────────── */
+.dgbi-checklist-footer {
+    padding-top: 4px;
+}
+
+/* ── Per-listing results table ────────────────────────────────────────────── */
+.dgbi-results-table {
+    margin-top: 16px;
+    font-size: 13px;
+}
+
+.dgbi-row-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.dgbi-status-imported { background: #d1e7dd; color: #0f5132; }
+.dgbi-status-updated  { background: #cfe2ff; color: #084298; }
+.dgbi-status-skipped  { background: #f0f0f1; color: #787c82; }
+.dgbi-status-error    { background: #f8d7da; color: #842029; }
+
+/* ── Progress bar ─────────────────────────────────────────────────────────── */
+#dgbi-progress {
+    margin-top: 20px;
+}
+
+.dgbi-progress-track {
+    position: relative;
+    height: 18px;
+    background: #f0f0f1;
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+.dgbi-progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: #3858e9;
+    border-radius: 9px;
+    transition: width 0.3s ease;
+}
+
+.dgbi-progress-status {
+    margin: 8px 0 0;
+    font-style: italic;
+    color: #555;
+    font-size: 13px;
+}
+
+/* ── Import results summary ───────────────────────────────────────────────── */
+#dgbi-import-results {
+    margin-top: 16px;
+}
+
+#dgbi-import-results .dgbi-summary .notice {
+    margin-left: 0;
+    margin-right: 0;
+}

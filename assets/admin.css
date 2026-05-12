@@ -1,0 +1,410 @@
+/* ── Listing Importer Admin Styles ───────────────────────────────────────────── */
+
+.dli-wrap {
+    --dli-surface: #fff;
+    --dli-subtle: #f6f7f7;
+    --dli-border: #dcdcde;
+    --dli-border-strong: #c3c4c7;
+    --dli-text: #1d2327;
+    --dli-muted: #646970;
+    --dli-accent: #3858e9;
+    --dli-accent-soft: #f0f3ff;
+    max-width: none;
+}
+
+.dli-header {
+    margin: 12px 0 4px;
+    padding: 18px 20px;
+    border: 1px solid var(--dli-border);
+    border-radius: 8px;
+    background: var(--dli-surface);
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+.dli-wrap h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    color: var(--dli-text);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.dli-logo {
+    font-size: 1.4em;
+}
+
+.dli-page-intro {
+    max-width: 820px;
+    margin: 0;
+    color: var(--dli-muted);
+    font-size: 13px;
+}
+
+.dli-page-intro a,
+.dli-boundary-notice a {
+    margin-left: 6px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.dli-boundary-notice {
+    margin: 0 0 16px;
+}
+
+.dli-url-label {
+    display: inline-block;
+    min-width: 48px;
+    color: var(--dli-muted);
+    font-weight: 600;
+}
+
+/* ── Tab content ─────────────────────────────────────────────────────────── */
+.dli-tab-content {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.dli-card {
+    background: var(--dli-surface);
+    border: 1px solid var(--dli-border);
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+.dli-card h2 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f1;
+    font-size: 15px;
+    color: var(--dli-text);
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.dli-tabs {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 0 !important;
+}
+
+.dli-primary-tabs {
+    margin: 8px 0 18px;
+    padding: 4px;
+    width: fit-content;
+    max-width: 100%;
+    background: #eceff3;
+    border: 1px solid var(--dli-border);
+    border-radius: 8px;
+}
+
+.dli-primary-tabs .nav-tab {
+    margin: 0;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #2c3338;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.dli-primary-tabs .nav-tab-active,
+.dli-primary-tabs .nav-tab-active:focus,
+.dli-primary-tabs .nav-tab-active:hover {
+    background: var(--dli-surface);
+    color: var(--dli-text);
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+
+.dli-secondary-tabs {
+    margin: 0 0 12px;
+    border-bottom: 0 !important;
+}
+
+.dli-secondary-tabs .nav-tab {
+    margin: 0;
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: #2c3338;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.dli-secondary-tabs .nav-tab-active,
+.dli-secondary-tabs .nav-tab-active:focus,
+.dli-secondary-tabs .nav-tab-active:hover {
+    background: var(--dli-accent-soft);
+    border-color: #ccd5ff;
+    color: #213fd4;
+}
+
+.dli-rss-panel,
+.dgbi-wrap {
+    margin-top: 0;
+}
+
+.dli-rss-panel .form-table,
+.dgbi-wrap .form-table {
+    margin-top: 0;
+    border-collapse: separate;
+    border-spacing: 0 4px;
+}
+
+.dli-rss-panel .form-table th,
+.dgbi-wrap .form-table th {
+    width: 210px;
+    padding: 11px 12px 11px 0;
+    color: var(--dli-text);
+    font-weight: 600;
+}
+
+.dli-rss-panel .form-table td,
+.dgbi-wrap .form-table td {
+    padding: 9px 10px;
+}
+
+.dli-rss-panel input[type="text"],
+.dli-rss-panel input[type="url"],
+.dli-rss-panel input[type="number"],
+.dli-rss-panel select,
+.dgbi-wrap input[type="text"],
+.dgbi-wrap input[type="url"],
+.dgbi-wrap input[type="number"],
+.dgbi-wrap input[type="password"],
+.dgbi-wrap select {
+    min-height: 36px;
+    border-color: var(--dli-border-strong);
+    border-radius: 6px;
+}
+
+.dli-rss-panel input:focus,
+.dli-rss-panel select:focus,
+.dgbi-wrap input:focus,
+.dgbi-wrap select:focus {
+    border-color: var(--dli-accent);
+    box-shadow: 0 0 0 1px var(--dli-accent);
+}
+
+.dli-rss-panel .regular-text,
+.dgbi-wrap .regular-text {
+    width: 400px;
+    max-width: 100%;
+}
+
+.dli-rss-panel .large-text {
+    max-width: 640px;
+}
+
+.dli-rss-panel .submit,
+.dgbi-wrap .submit {
+    margin-top: 8px;
+    padding-bottom: 0;
+}
+
+.dli-form-section-row th {
+    padding-top: 18px !important;
+    padding-bottom: 6px !important;
+}
+
+.dli-form-section-row span {
+    display: block;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f1;
+    color: var(--dli-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dli-manual-source {
+    order: 1;
+    padding: 0;
+}
+
+.dli-preview-card {
+    order: 2;
+}
+
+.dli-connected-sources {
+    order: 4;
+}
+
+.dli-quality-summary {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    color: var(--dli-muted);
+}
+
+.dli-quality-summary strong {
+    color: var(--dli-text);
+}
+
+.dli-preview-table td {
+    vertical-align: top;
+}
+
+.dli-key-connected {
+    color: #187034;
+    font-weight: 600;
+}
+
+.dli-key-connected span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+    border-radius: 999px;
+    background: #edfaef;
+    color: #187034;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.dli-manual-source:has(select[name="sync_mode"] option[value="one_time"]:checked) .dli-sync-field {
+    display: none;
+}
+
+.dli-manual-source summary {
+    padding: 18px 24px;
+    color: var(--dli-text);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.dli-manual-source summary::-webkit-details-marker {
+    display: none;
+}
+
+.dli-manual-source[open] summary {
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.dli-manual-source form {
+    padding: 0 24px 20px;
+}
+
+/* ── Badge (count / status) ──────────────────────────────────────────────── */
+.dli-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f0f0f1;
+    color: #444;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.dli-badge--active {
+    background: #edfaef;
+    color: #187034;
+}
+
+.dli-badge--paused {
+    background: #fff8e5;
+    color: #7a5600;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.dli-table {
+    margin-top: 8px;
+    border-color: var(--dli-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.dli-table th {
+    font-weight: 600;
+    color: var(--dli-text);
+    background: var(--dli-subtle);
+}
+
+.dli-table td,
+.dli-table th {
+    padding-top: 11px;
+    padding-bottom: 11px;
+}
+
+.dli-num {
+    text-align: center;
+    font-weight: 600;
+}
+
+.dli-num--green { color: #28a745; }
+.dli-num--red   { color: #dc3545; }
+
+/* ── Actions column ──────────────────────────────────────────────────────── */
+.dli-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.dli-empty {
+    color: var(--dli-muted);
+    font-style: italic;
+    padding: 12px 0;
+}
+
+.dli-empty-state {
+    padding: 34px 16px;
+    text-align: center;
+    border: 1px dashed var(--dli-border-strong);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
+}
+
+.dli-empty-state h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: var(--dli-text);
+}
+
+.dli-empty-state p {
+    margin: 0;
+    color: var(--dli-muted);
+}
+
+@media (max-width: 782px) {
+    .dli-primary-tabs {
+        width: auto;
+    }
+
+    .dli-primary-tabs .nav-tab,
+    .dli-secondary-tabs .nav-tab {
+        flex: 1 1 auto;
+        text-align: center;
+    }
+
+    .dli-card,
+    .dgbi-tab-content {
+        padding: 18px;
+    }
+
+    .dli-manual-source summary {
+        padding: 16px 18px;
+    }
+
+    .dli-manual-source form {
+        padding: 0 18px 18px;
+    }
+}
