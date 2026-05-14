@@ -101,6 +101,7 @@ class Admin_Page {
 			'nonce'   => wp_create_nonce( 'dlig_ajax' ),
 			'i18n'    => [
 				'keyword_required'  => __( 'Please enter a keyword before importing.', 'directorist-listing-import' ),
+				'location_required' => __( 'Please enter a location before importing.', 'directorist-listing-import' ),
 				'searching'         => __( 'Searching Google Places…', 'directorist-listing-import' ),
 				/* translators: %d: number of places found */
 				'preview_heading'   => __( 'Found %d place(s). Select which to import:', 'directorist-listing-import' ),
@@ -311,7 +312,7 @@ class Admin_Page {
 
 				<tr>
 					<th scope="row">
-						<label for="dgbi_location"><?php esc_html_e( 'Location', 'directorist-listing-import' ); ?></label>
+						<label for="dgbi_location"><?php esc_html_e( 'Location', 'directorist-listing-import' ); ?> <span class="required">*</span></label>
 					</th>
 					<td>
 						<input
@@ -319,7 +320,8 @@ class Admin_Page {
 							id="dgbi_location"
 							name="location"
 							class="regular-text"
-							placeholder="<?php esc_attr_e( 'e.g. Dhaka, New York, London', 'directorist-listing-import' ); ?>"
+							placeholder="<?php esc_attr_e( 'e.g. New York, Madrid, London', 'directorist-listing-import' ); ?>"
+							required
 						>
 					</td>
 				</tr>
@@ -461,9 +463,9 @@ class Admin_Page {
 								type="checkbox"
 								name="import_reviews"
 								value="1"
-								<?php checked( $this->settings->get_import_reviews() ); ?>
+								checked
 							>
-							<?php esc_html_e( 'Import Google reviews as Directorist review comments', 'directorist-listing-import' ); ?>
+							<?php esc_html_e( 'Only a few Google review comments can be imported, but the rating is based on the full Google review score.', 'directorist-listing-import' ); ?>
 						</label>
 					</td>
 				</tr>

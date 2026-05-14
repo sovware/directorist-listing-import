@@ -34,7 +34,6 @@ class Installer {
 		// Set default options (only if not already set).
 		add_option( 'dgbi_api_key',        '',         '', 'no' );
 		add_option( 'dgbi_default_status', 'pending',  '', 'no' );
-		add_option( 'dgbi_import_reviews', '1',        '', 'no' );
 		add_option( 'dgbi_max_results',    '20',       '', 'no' );
 		add_option( 'dgbi_field_map',      [],         '', 'no' );
 		// History stored with autoload off to avoid front-end overhead.

@@ -5,7 +5,6 @@
  * Provides a Settings tab under Directorist → Google Importer for:
  *  - API Key (stored encrypted, never passed through URLs)
  *  - Default listing status
- *  - Import reviews toggle
  *  - Max results per run
  *
  * @package Directorist_Google_Importer
@@ -25,7 +24,6 @@ class Settings {
 	/** Option key for the encrypted API key. */
 	const OPT_API_KEY        = 'dgbi_api_key';
 	const OPT_DEFAULT_STATUS = 'dgbi_default_status';
-	const OPT_IMPORT_REVIEWS = 'dgbi_import_reviews';
 	const OPT_MAX_RESULTS    = 'dgbi_max_results';
 
 	/**
@@ -52,10 +50,6 @@ class Settings {
 		return in_array( $status, $allowed, true ) ? $status : 'pending';
 	}
 
-	public function get_import_reviews(): bool {
-		return (bool) get_option( self::OPT_IMPORT_REVIEWS, '1' );
-	}
-
 	public function get_max_results(): int {
 		return max( 1, min( 60, intval( get_option( self::OPT_MAX_RESULTS, 20 ) ) ) );
 	}
@@ -67,9 +61,6 @@ class Settings {
 			'sanitize_callback' => function ( $v ) {
 				return in_array( $v, [ 'draft', 'pending', 'publish' ], true ) ? $v : 'pending';
 			},
-		] );
-		register_setting( 'dgbi_settings_group', self::OPT_IMPORT_REVIEWS, [
-			'sanitize_callback' => 'absint',
 		] );
 		register_setting( 'dgbi_settings_group', self::OPT_MAX_RESULTS, [
 			'sanitize_callback' => function ( $v ) {
@@ -107,7 +98,6 @@ class Settings {
 			$status = 'pending';
 		}
 		update_option( self::OPT_DEFAULT_STATUS, $status, 'no' );
-		update_option( self::OPT_IMPORT_REVIEWS, isset( $_POST['dgbi_import_reviews'] ) ? '1' : '0', 'no' );
 
 		$max = max( 1, min( 60, absint( $_POST['dgbi_max_results'] ?? 20 ) ) );
 		update_option( self::OPT_MAX_RESULTS, $max, 'no' );
@@ -132,6 +122,13 @@ class Settings {
 			<?php wp_nonce_field( 'dlig_save_google_settings_action', 'dgbi_settings_nonce' ); ?>
 
 			<table class="form-table" role="presentation">
+				<tr>
+					<td colspan="2">
+						<p class="description">
+							<?php esc_html_e( 'These defaults are preselected on the Import tab and can be changed before each import.', 'directorist-listing-import' ); ?>
+						</p>
+					</td>
+				</tr>
 
 				<tr>
 					<th scope="row">
@@ -184,16 +181,6 @@ class Settings {
 							}
 							?>
 						</select>
-					</td>
-				</tr>
-
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Import Google Reviews', 'directorist-listing-import' ); ?></th>
-					<td>
-						<label>
-							<input type="checkbox" name="dgbi_import_reviews" value="1" <?php checked( $this->get_import_reviews() ); ?>>
-							<?php esc_html_e( 'Create Directorist review comments from Google reviews', 'directorist-listing-import' ); ?>
-						</label>
 					</td>
 				</tr>
 
