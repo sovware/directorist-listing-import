@@ -3,6 +3,7 @@
  * Plugin Name:       Listing Importer
  * Plugin URI:        https://directorist.com/
  * Description:       Bulk import listings from Google Business Profile data and legal RSS/feed sources.
+ * Version:           1.0.0
  * Author:            wpwax
  * Author URI:        https://wpwax.com/
  * License:           GPL-2.0+
@@ -32,8 +33,10 @@ define( 'DLI_LEGACY_OPTION_LOGS', 'directorsync_logs' );
 define( 'DLI_LEGACY_OPTION_SETTINGS', 'directorsync_settings' );
 define( 'DLI_CRON_HOOK', 'directorist_listing_import_run_feeds' );
 define( 'DLI_LEGACY_CRON_HOOK', 'directorsync_run_feeds' );
+define( 'DLI_AUTHOR_URL', 'https://directorist.com' );
+define( 'DLI_ITEM_ID', 370853 );
 
-define( 'DLIG_VERSION', '2.0.0' );
+define( 'DLIG_VERSION', '1.0.0' );
 define( 'DLIG_FILE', DLI_FILE );
 define( 'DLIG_DIR', DLI_PLUGIN_DIR . 'google/' );
 define( 'DLIG_URL', DLI_PLUGIN_URL . 'google/' );
@@ -58,6 +61,28 @@ require_once DLIG_DIR . 'includes/class-plugin.php';
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 add_action( 'plugins_loaded', 'directorist_listing_import_init' );
+add_action( 'admin_init', 'directorist_listing_import_update_controller' );
+
+function directorist_listing_import_update_controller(): void {
+    if ( ! class_exists( 'EDD_SL_Plugin_Updater' ) ) {
+        require_once DLI_PLUGIN_DIR . 'includes/EDD_SL_Plugin_Updater.php';
+    }
+
+    $subscription_data = get_user_meta( get_current_user_id(), '_plugins_available_in_subscriptions', true );
+    $subscription_data = is_array( $subscription_data ) ? $subscription_data : [];
+    $license_item      = $subscription_data['directorist-listing-importer'] ?? [];
+    $license_key       = $license_item['license'] ?? '';
+
+    new EDD_SL_Plugin_Updater( DLI_AUTHOR_URL, DLI_FILE, [
+        'version' => DLI_VERSION,
+        'license' => $license_key,
+        'item_id' => DLI_ITEM_ID,
+        'author'  => 'AazzTech',
+        'url'     => home_url(),
+        'beta'    => false,
+    ] );
+}
+
 function directorist_listing_import_init() {
     load_plugin_textdomain(
         DLI_TEXT_DOMAIN,
