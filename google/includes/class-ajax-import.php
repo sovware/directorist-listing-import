@@ -81,6 +81,11 @@ class Ajax_Import {
 			wp_send_json_error( [ 'message' => __( 'Keyword is required.', 'directorist-listing-import' ) ] );
 		}
 
+		$location = sanitize_text_field( wp_unslash( $_POST['location'] ?? '' ) );
+		if ( empty( $location ) ) {
+			wp_send_json_error( [ 'message' => __( 'Location is required.', 'directorist-listing-import' ) ] );
+		}
+
 		$post_status = sanitize_text_field( wp_unslash( $_POST['post_status'] ?? 'pending' ) );
 		if ( ! in_array( $post_status, [ 'draft', 'pending', 'publish' ], true ) ) {
 			$post_status = 'pending';
@@ -89,7 +94,7 @@ class Ajax_Import {
 		// Run the search (geocode + Places API call).
 		$search = $this->importer->search_only( [
 			'keyword'     => $keyword,
-			'location'    => sanitize_text_field( wp_unslash( $_POST['location'] ?? '' ) ),
+			'location'    => $location,
 			'radius'      => max( 0, min( 50000, intval( $_POST['radius'] ?? 5000 ) ) ),
 			'api_key'     => $api_key,
 			'max_results' => max( 1, min( 60, intval( $_POST['max_results'] ?? 20 ) ) ),
@@ -119,7 +124,7 @@ class Ajax_Import {
 				],
 				'meta'       => [
 					'keyword'     => $keyword,
-					'location'    => sanitize_text_field( wp_unslash( $_POST['location'] ?? '' ) ),
+					'location'    => $location,
 					'post_status' => $post_status,
 					'started_at'  => current_time( 'mysql' ),
 					'user_id'     => $user_id,

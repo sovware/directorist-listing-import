@@ -2,8 +2,7 @@
 /**
  * Plugin Name:       Listing Importer
  * Plugin URI:        https://directorist.com/
- * Description:       Import Directorist listings from Google Business Profile data and legal RSS/feed sources. Use Directorist core for CSV/spreadsheet imports.
- * Version:           1.0.0
+ * Description:       Bulk import listings from Google Business Profile data and legal RSS/feed sources.
  * Author:            wpwax
  * Author URI:        https://wpwax.com/
  * License:           GPL-2.0+

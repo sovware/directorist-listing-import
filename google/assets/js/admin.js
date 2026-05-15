@@ -89,6 +89,11 @@ jQuery( function ( $ ) {
 			return;
 		}
 
+		if ( ! $.trim( $form.find( '[name="location"]' ).val() ) ) {
+			alert( dgbiAjax.i18n.location_required );
+			return;
+		}
+
 		runSearch();
 	} );
 
