@@ -7,10 +7,17 @@
  *
  *   dlig_start_import  — validate, geocode, search → returns place list + queue ID.
  *   dlig_import_place  — fetch details + create one listing → returns per-place result.
- *   dlig_finish_import — log the completed run + clean up the transient queue.
+ *   dlig_finish_import — log the completed run + clean up the queue.
  *
- * The queue (search results + import settings) is stored in a transient so
+ * The queue (search results + import settings) is stored in wp_usermeta so
  * each dlig_import_place call only needs the queue ID and a place index.
+ *
+ * Using wp_usermeta (not transients) is intentional: many caching plugins flush the
+ * entire object cache when wp_insert_post() fires (e.g. on the first listing import),
+ * which would silently wipe a transient and cause every subsequent dlig_import_place
+ * call to return "queue not found." wp_usermeta lives entirely outside the
+ * post/cache hook chain that Directorist and caching plugins operate on, so it is
+ * never affected by listing saves or cache flushes.
  *
  * @package Directorist_Google_Importer
  */
@@ -26,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Ajax_Import {
 
-	/** Transient lifetime — long enough for a full 60-place import at ~3 s/place. */
+	/** Maximum age of an abandoned queue option before cleanup considers it stale. */
 	const QUEUE_TTL = 15 * MINUTE_IN_SECONDS;
 
 	/** @var Settings */
@@ -106,9 +113,12 @@ class Ajax_Import {
 
 		$places = $search['places'] ?? [];
 
-		// Store queue: places + import settings (api_key stays server-side).
-		$queue_id = 'dgbi_q_' . $user_id . '_' . wp_rand();
-		set_transient(
+		// Store queue in wp_usermeta (not a transient) so it survives object-cache
+		// flushes that caching plugins trigger on wp_insert_post().
+		$queue_id = 'dgbi_q_' . wp_rand();
+		$this->cleanup_stale_queues( $user_id );
+		update_user_meta(
+			$user_id,
 			$queue_id,
 			[
 				'places'     => $places,
@@ -129,8 +139,7 @@ class Ajax_Import {
 					'started_at'  => current_time( 'mysql' ),
 					'user_id'     => $user_id,
 				],
-			],
-			self::QUEUE_TTL
+			]
 		);
 
 		// Return place_id + name + is_duplicate to the browser (no internal API details).
@@ -160,12 +169,13 @@ class Ajax_Import {
 		$queue_id = sanitize_key( $_POST['queue_id'] ?? '' );
 		$index    = intval( $_POST['place_index'] ?? -1 );
 
-		$queue = get_transient( $queue_id );
+		$queue = get_user_meta( get_current_user_id(), $queue_id, true );
 
 		if ( ! $queue ) {
 			wp_send_json_error( [
 				'message' => __( 'Import queue expired or not found. Please start a new import.', 'directorist-listing-import' ),
 			] );
+			return;
 		}
 
 		if ( ! isset( $queue['places'][ $index ] ) ) {
@@ -176,6 +186,7 @@ class Ajax_Import {
 					$index
 				),
 			] );
+			return;
 		}
 
 		$result = $this->importer->import_single_place(
@@ -187,13 +198,14 @@ class Ajax_Import {
 	}
 
 	/**
-	 * Log the completed run and clean up the transient.
+	 * Log the completed run and clean up the queue option.
 	 */
 	public function handle_finish(): void {
 		$this->verify( 'dlig_ajax' );
 
+		$user_id  = get_current_user_id();
 		$queue_id = sanitize_key( $_POST['queue_id'] ?? '' );
-		$queue    = get_transient( $queue_id );
+		$queue    = get_user_meta( $user_id, $queue_id, true );
 
 		if ( $queue ) {
 			$errors_raw = json_decode( stripslashes( $_POST['errors'] ?? '[]' ), true );
@@ -204,7 +216,7 @@ class Ajax_Import {
 			$history = get_option( 'dgbi_import_history', [] );
 			array_unshift( $history, [
 				'time'            => $queue['meta']['started_at'] ?? current_time( 'mysql' ),
-				'user_id'         => $queue['meta']['user_id']    ?? get_current_user_id(),
+				'user_id'         => $queue['meta']['user_id']    ?? $user_id,
 				'keyword'         => $queue['meta']['keyword']    ?? '',
 				'location'        => $queue['meta']['location']   ?? '',
 				'post_status'     => $queue['meta']['post_status'] ?? '',
@@ -215,15 +227,54 @@ class Ajax_Import {
 				'reviews_created' => intval( $_POST['reviews_created'] ?? 0 ),
 				'errors'          => $errors,
 			] );
-			update_option( 'dgbi_import_history', array_slice( $history, 0, 50 ), 'no' );
+			update_option( 'dgbi_import_history', array_slice( $history, 0, 50 ), false );
 
-			delete_transient( $queue_id );
+			delete_user_meta( $user_id, $queue_id );
 		}
 
 		wp_send_json_success( [ 'done' => true ] );
 	}
 
 	// ── Private helpers ───────────────────────────────────────────────────────
+
+	/**
+	 * Delete stale queue user-meta left behind by abandoned imports for this user.
+	 * Called at the start of each new import to prevent wp_usermeta from accumulating
+	 * orphaned rows (e.g. when the browser is closed mid-import before handle_finish).
+	 *
+	 * @param int $user_id Current user ID.
+	 */
+	private function cleanup_stale_queues( int $user_id ): void {
+		global $wpdb;
+
+		$meta_keys = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT meta_key FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key LIKE %s",
+				$user_id,
+				$wpdb->esc_like( 'dgbi_q_' ) . '%'
+			)
+		);
+
+		if ( empty( $meta_keys ) ) {
+			return;
+		}
+
+		$cutoff = time() - self::QUEUE_TTL;
+
+		foreach ( $meta_keys as $meta_key ) {
+			$stored = get_user_meta( $user_id, $meta_key, true );
+			if ( ! is_array( $stored ) ) {
+				delete_user_meta( $user_id, $meta_key );
+				continue;
+			}
+			$started = isset( $stored['meta']['started_at'] )
+				? strtotime( $stored['meta']['started_at'] )
+				: 0;
+			if ( ! $started || $started < $cutoff ) {
+				delete_user_meta( $user_id, $meta_key );
+			}
+		}
+	}
 
 	/**
 	 * Verify nonce + capability, die on failure.
