@@ -54,6 +54,10 @@
     max-width: 100%;
 }
 
+.dgbi-remove-key-button {
+    margin-top: 6px;
+}
+
 /* ── Note paragraph ───────────────────────────────────────────────────────── */
 .dgbi-note {
     border-left: 3px solid #3858e9;
@@ -61,6 +65,22 @@
     padding: 8px 12px;
     margin-top: 12px;
     margin-bottom: 16px;
+}
+
+/* ── Cost control note ───────────────────────────────────────────────────── */
+.dgbi-cost-control {
+    max-width: 760px;
+    margin: 4px 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #c3d4f3;
+    border-left: 4px solid #3858e9;
+    background: #f6f9ff;
+    border-radius: 6px;
+}
+
+.dgbi-cost-control p {
+    margin: 6px 0 0;
+    color: #50575e;
 }
 
 /* ── History table ────────────────────────────────────────────────────────── */
