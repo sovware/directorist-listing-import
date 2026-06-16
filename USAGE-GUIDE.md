@@ -91,6 +91,10 @@ Go to **Directorist → Listing Importer → Google Business Import**.
 
 Use the **Import History** sub-tab to review past Google import runs.
 
+### Managing Google API costs
+
+Google may charge for Places API usage when you search and import businesses. To stay in control of spending, set a monthly budget and email alerts in **Google Cloud Console → Billing → Budgets & alerts**.
+
 ---
 
 ## Finding Importable Sources

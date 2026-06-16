@@ -443,7 +443,7 @@ class Admin_Page {
 							name="max_results"
 							class="small-text"
 							min="1"
-							max="60"
+							max="20"
 							value="<?php echo esc_attr( $this->settings->get_max_results() ); ?>"
 						>
 					</td>
@@ -463,7 +463,6 @@ class Admin_Page {
 								type="checkbox"
 								name="import_reviews"
 								value="1"
-								checked
 							>
 							<?php esc_html_e( 'Only a few Google review comments can be imported, but the rating is based on the full Google review score.', 'directorist-listing-import' ); ?>
 						</label>
@@ -474,7 +473,7 @@ class Admin_Page {
 					<th scope="row"><?php esc_html_e( 'Import Photos', 'directorist-listing-import' ); ?></th>
 					<td>
 						<label>
-							<input type="checkbox" name="import_photos" value="1" checked>
+							<input type="checkbox" name="import_photos" value="1">
 							<?php esc_html_e( 'Sideload first Google photo as listing featured image', 'directorist-listing-import' ); ?>
 						</label>
 					</td>
@@ -491,6 +490,13 @@ class Admin_Page {
 				</tr>
 
 			</table>
+
+			<div class="dgbi-cost-control">
+				<strong><?php esc_html_e( 'Manage Google API costs', 'directorist-listing-import' ); ?></strong>
+				<p>
+					<?php esc_html_e( 'Google may charge for Places API usage when you search and import businesses. To stay in control of spending, set a monthly budget and email alerts in Google Cloud Console.', 'directorist-listing-import' ); ?>
+				</p>
+			</div>
 
 			<?php
 			submit_button(
@@ -613,7 +619,7 @@ class Admin_Page {
 			if ( empty( $_POST['dgbi_clear_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['dgbi_clear_nonce'] ), 'dgbi_clear_history_action' ) ) {
 				wp_die( esc_html__( 'Security check failed.', 'directorist-listing-import' ) );
 			}
-			update_option( 'dgbi_import_history', [], 'no' );
+			update_option( 'dgbi_import_history', [], false );
 			wp_safe_redirect( add_query_arg(
 				[ 'page' => DLI_PAGE_SLUG, 'tab' => 'google', 'google_tab' => 'history', 'dgbi_cleared' => '1' ],
 				admin_url( 'edit.php?post_type=at_biz_dir' )
@@ -641,6 +647,10 @@ class Admin_Page {
 			// Settings saved
 			if ( ! empty( $_GET['dgbi_settings_saved'] ) ) {
 				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved.', 'directorist-listing-import' ) . '</p></div>';
+			}
+
+			if ( ! empty( $_GET['dgbi_key_removed'] ) ) {
+				echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html__( 'API key removed. Imports will not work until a new key is added.', 'directorist-listing-import' ) . '</p></div>';
 			}
 
 			if ( ! empty( $_GET['dgbi_mapping_saved'] ) ) {
