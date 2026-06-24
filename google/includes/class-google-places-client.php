@@ -74,8 +74,8 @@ class Google_Places_Client {
 					'X-Goog-FieldMask' => 'places.location',
 				],
 				'body' => wp_json_encode( [
-					'textQuery'      => $location,
-					'maxResultCount' => 1,
+					'textQuery' => $location,
+					'pageSize'  => 1,
 				] ),
 			]
 		);
@@ -112,85 +112,138 @@ class Google_Places_Client {
 			return [ 'places' => [], 'error' => __( 'No API key configured.', 'directorist-listing-import' ) ];
 		}
 
-		$places     = [];
-		$page_token = null;
-		$per_page   = \min( $max, 20 ); // New API max per page is 20
-		$sslverify  = $this->sslverify();
+		$max           = \max( 1, \min( 60, $max ) );
+		$places        = [];
+		$seen          = [];
+		$seen_tokens   = [];
+		$page_token    = '';
+		$per_page      = \min( $max, 20 ); // New API max per page is 20.
+		$pages_fetched = 0;
 
 		do {
-			$body = [ 'textQuery' => $query, 'maxResultCount' => $per_page ];
-
-			// locationBias.circle requires both a centre and a radius.
-			// Only include it when valid coordinates were resolved by the caller.
-			if ( $radius > 0 && ( 0.0 !== $lat || 0.0 !== $lng ) ) {
-				$body['locationBias'] = [
-					'circle' => [
-						'center' => [
-							'latitude'  => $lat,
-							'longitude' => $lng,
-						],
-						'radius' => (float) $radius,
-					],
-				];
+			$page = $this->search_page( $query, $radius, $per_page, $lat, $lng, $page_token );
+			$pages_fetched++;
+			if ( ! empty( $page['error'] ) ) {
+				return [ 'places' => $places, 'error' => $page['error'] ];
 			}
 
-			if ( $page_token ) {
-				$body['pageToken'] = $page_token;
+			foreach ( $page['places'] as $place ) {
+				$place_id = $place['place_id'] ?? '';
+				if ( '' === $place_id || isset( $seen[ $place_id ] ) ) {
+					continue;
+				}
+
+				$seen[ $place_id ] = true;
+				$places[]          = $place;
 			}
 
-			$response = wp_remote_post(
-				self::SEARCH_ENDPOINT,
-				[
-					'timeout'   => self::TIMEOUT,
-					'sslverify' => $sslverify,
-					'headers'   => [
-						'Content-Type'     => 'application/json',
-						'X-Goog-Api-Key'   => $this->api_key,
-						'X-Goog-FieldMask' => 'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryType,places.primaryTypeDisplayName,places.types,places.businessStatus,places.priceLevel,places.priceRange,places.plusCode,places.pureServiceAreaBusiness,nextPageToken',
-					],
-					'body' => wp_json_encode( $body ),
-				]
-			);
-
-			if ( is_wp_error( $response ) ) {
-				return [ 'places' => $places, 'error' => $response->get_error_message() ];
+			$next_token = is_string( $page['next_page_token'] ?? null ) ? $page['next_page_token'] : '';
+			if ( '' === $next_token || isset( $seen_tokens[ $next_token ] ) ) {
+				$page_token = '';
+			} else {
+				$seen_tokens[ $next_token ] = true;
+				$page_token                 = $next_token;
 			}
-
-			$code = wp_remote_retrieve_response_code( $response );
-			$data = json_decode( wp_remote_retrieve_body( $response ), true );
-
-			// Detect API-level errors
-			if ( isset( $data['error'] ) ) {
-				$msg      = $data['error']['message'] ?? __( 'Unknown Google API error.', 'directorist-listing-import' );
-				$code_str = $data['error']['code']    ?? '';
-				/* translators: 1: Error code, 2: Error message */
-				return [ 'places' => $places, 'error' => \sprintf( __( 'Google API error %1$s: %2$s', 'directorist-listing-import' ), $code_str, $msg ) ];
-			}
-
-			if ( 200 !== (int) $code ) {
-				/* translators: %s: HTTP status code */
-				return [ 'places' => $places, 'error' => \sprintf( __( 'Unexpected HTTP status: %s', 'directorist-listing-import' ), $code ) ];
-			}
-
-			$batch = $data['places'] ?? [];
-			foreach ( $batch as $raw ) {
-				$places[] = $this->normalise_search_result( $raw );
-			}
-
-			$page_token = $data['nextPageToken'] ?? null;
 
 			if ( \count( $places ) >= $max ) {
 				break;
 			}
 
-			// Google recommends a brief pause between paginated requests.
-			if ( $page_token && \count( $places ) < $max ) {
-				sleep( 2 );
-			}
-
-		} while ( $page_token && \count( $places ) < $max );
+		} while ( $page_token && $pages_fetched < 3 && \count( $places ) < $max );
 
 		return [ 'places' => \array_slice( $places, 0, $max ), 'error' => '' ];
+	}
+
+	/**
+	 * Fetch one page from Places Text Search (New).
+	 *
+	 * @param string $query      Combined keyword + location string.
+	 * @param int    $radius     Bias radius in metres.
+	 * @param int    $page_size  Results requested for this page (1–20).
+	 * @param float  $lat        Centre latitude for locationBias.
+	 * @param float  $lng        Centre longitude for locationBias.
+	 * @param string $page_token Token returned by the previous page.
+	 * @return array{places: array, error: string, next_page_token: string}
+	 */
+	public function search_page( string $query, int $radius, int $page_size = 20, float $lat = 0.0, float $lng = 0.0, string $page_token = '' ): array {
+		if ( empty( $this->api_key ) ) {
+			return [
+				'places'          => [],
+				'error'           => __( 'No API key configured.', 'directorist-listing-import' ),
+				'next_page_token' => '',
+			];
+		}
+
+		$body = [
+			'textQuery' => $query,
+			'pageSize'  => \max( 1, \min( 20, $page_size ) ),
+		];
+
+		// locationBias.circle requires both a centre and a radius.
+		if ( $radius > 0 && ( 0.0 !== $lat || 0.0 !== $lng ) ) {
+			$body['locationBias'] = [
+				'circle' => [
+					'center' => [
+						'latitude'  => $lat,
+						'longitude' => $lng,
+					],
+					'radius' => (float) $radius,
+				],
+			];
+		}
+
+		if ( '' !== $page_token ) {
+			$body['pageToken'] = $page_token;
+		}
+
+		$response = wp_remote_post(
+			self::SEARCH_ENDPOINT,
+			[
+				'timeout'   => self::TIMEOUT,
+				'sslverify' => $this->sslverify(),
+				'headers'   => [
+					'Content-Type'     => 'application/json',
+					'X-Goog-Api-Key'   => $this->api_key,
+					'X-Goog-FieldMask' => 'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryType,places.primaryTypeDisplayName,places.types,places.businessStatus,places.priceLevel,places.priceRange,places.plusCode,places.pureServiceAreaBusiness,nextPageToken',
+				],
+				'body' => wp_json_encode( $body ),
+			]
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return [ 'places' => [], 'error' => $response->get_error_message(), 'next_page_token' => '' ];
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$data = is_array( $data ) ? $data : [];
+
+		if ( isset( $data['error'] ) ) {
+			$msg      = $data['error']['message'] ?? __( 'Unknown Google API error.', 'directorist-listing-import' );
+			$code_str = $data['error']['code'] ?? '';
+			/* translators: 1: Error code, 2: Error message */
+			$error = \sprintf( __( 'Google API error %1$s: %2$s', 'directorist-listing-import' ), $code_str, $msg );
+			return [ 'places' => [], 'error' => $error, 'next_page_token' => '' ];
+		}
+
+		if ( 200 !== (int) $code ) {
+			/* translators: %s: HTTP status code */
+			$error = \sprintf( __( 'Unexpected HTTP status: %s', 'directorist-listing-import' ), $code );
+			return [ 'places' => [], 'error' => $error, 'next_page_token' => '' ];
+		}
+
+		$places = [];
+		foreach ( $data['places'] ?? [] as $raw ) {
+			if ( is_array( $raw ) ) {
+				$places[] = $this->normalise_search_result( $raw );
+			}
+		}
+
+		return [
+			'places'          => $places,
+			'error'           => '',
+			'next_page_token' => is_string( $data['nextPageToken'] ?? null ) ? $data['nextPageToken'] : '',
+		];
 	}
 
 	/**

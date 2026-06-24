@@ -36,7 +36,7 @@ define( 'DLI_LEGACY_CRON_HOOK', 'directorsync_run_feeds' );
 define( 'DLI_AUTHOR_URL', 'https://directorist.com' );
 define( 'DLI_ITEM_ID', 370853 );
 
-define( 'DLIG_VERSION', '1.0.0' );
+define( 'DLIG_VERSION', DLI_VERSION );
 define( 'DLIG_FILE', DLI_FILE );
 define( 'DLIG_DIR', DLI_PLUGIN_DIR . 'google/' );
 define( 'DLIG_URL', DLI_PLUGIN_URL . 'google/' );

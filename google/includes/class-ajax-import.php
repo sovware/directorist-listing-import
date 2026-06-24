@@ -93,18 +93,27 @@ class Ajax_Import {
 			wp_send_json_error( [ 'message' => __( 'Location is required.', 'directorist-listing-import' ) ] );
 		}
 
+		$find_new_only   = ! empty( $_POST['find_new_only'] );
+		$update_existing = ! empty( $_POST['update_existing'] );
+		if ( $find_new_only && $update_existing ) {
+			wp_send_json_error( [
+				'message' => __( 'Choose either Find New Listings Only or Update Existing, not both.', 'directorist-listing-import' ),
+			] );
+		}
+
 		$post_status = sanitize_text_field( wp_unslash( $_POST['post_status'] ?? 'pending' ) );
 		if ( ! in_array( $post_status, [ 'draft', 'pending', 'publish' ], true ) ) {
 			$post_status = 'pending';
 		}
 
 		// Run the search (geocode + Places API call).
-		$search = $this->importer->search_only( [
-			'keyword'     => $keyword,
-			'location'    => $location,
-			'radius'      => max( 0, min( 50000, intval( $_POST['radius'] ?? 5000 ) ) ),
-			'api_key'     => $api_key,
-			'max_results' => max( 1, min( 60, intval( $_POST['max_results'] ?? 20 ) ) ),
+		$search = $this->importer->search_for_import( [
+			'keyword'       => $keyword,
+			'location'      => $location,
+			'radius'        => max( 0, min( 50000, intval( $_POST['radius'] ?? 5000 ) ) ),
+			'api_key'       => $api_key,
+			'max_results'   => max( 1, min( 20, intval( $_POST['max_results'] ?? 20 ) ) ),
+			'find_new_only' => $find_new_only,
 		] );
 
 		if ( ! empty( $search['error'] ) ) {
@@ -112,6 +121,16 @@ class Ajax_Import {
 		}
 
 		$places = $search['places'] ?? [];
+		if ( empty( $places ) ) {
+			wp_send_json_success( [
+				'queue_id'         => '',
+				'total'            => 0,
+				'places'           => [],
+				'scanned'          => intval( $search['scanned'] ?? 0 ),
+				'skipped_existing' => intval( $search['skipped_existing'] ?? 0 ),
+			] );
+			return;
+		}
 
 		// Store queue in wp_usermeta (not a transient) so it survives object-cache
 		// flushes that caching plugins trigger on wp_insert_post().
@@ -130,7 +149,7 @@ class Ajax_Import {
 					'post_status'     => $post_status,
 					'import_reviews'  => ! empty( $_POST['import_reviews'] ),
 					'import_photos'   => ! empty( $_POST['import_photos'] ),
-					'update_existing' => ! empty( $_POST['update_existing'] ),
+					'update_existing' => $update_existing,
 				],
 				'meta'       => [
 					'keyword'     => $keyword,
@@ -144,19 +163,20 @@ class Ajax_Import {
 
 		// Return place_id + name + is_duplicate to the browser (no internal API details).
 		// is_duplicate lets the JS pre-deselect already-imported places in the preview list.
-		$importer   = $this->importer;
-		$place_list = array_map( function ( $p ) use ( $importer ) {
+		$place_list = array_map( function ( $p ) {
 			return [
 				'place_id'     => $p['place_id'],
 				'name'         => $p['name'],
-				'is_duplicate' => $importer->listing_exists( $p['place_id'] ),
+				'is_duplicate' => ! empty( $p['is_duplicate'] ),
 			];
 		}, $places );
 
 		wp_send_json_success( [
-			'queue_id' => $queue_id,
-			'total'    => count( $places ),
-			'places'   => $place_list,
+			'queue_id'         => $queue_id,
+			'total'            => count( $places ),
+			'places'           => $place_list,
+			'scanned'          => intval( $search['scanned'] ?? count( $places ) ),
+			'skipped_existing' => intval( $search['skipped_existing'] ?? 0 ),
 		] );
 	}
 

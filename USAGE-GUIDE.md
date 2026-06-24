@@ -89,6 +89,12 @@ Go to **Directorist → Listing Importer → Google Business Import**.
 5. Choose the Directorist category, location, listing status, and import options.
 6. Click **Import Businesses**, review the preview list, and import the selected businesses.
 
+**Find New Listings Only** is enabled by default. It skips businesses already imported with the same Google Place ID and checks later Google result pages until it finds the requested number of new listings. This means that after importing the first 20 results, repeating the same search can return the next available batch.
+
+Clear **Find New Listings Only** to preview a mixture of new and already-imported results. Select **Update Existing** instead when you want to refresh previously imported listings. These two options are mutually exclusive.
+
+Google Text Search returns up to 20 results per page and at most 60 results across all pages for one search. After those available matches have been imported, the importer will report that no additional new listings are available.
+
 Use the **Import History** sub-tab to review past Google import runs.
 
 ### Managing Google API costs
