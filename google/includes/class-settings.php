@@ -100,7 +100,7 @@ class Settings {
 		}
 		update_option( self::OPT_DEFAULT_STATUS, $status, 'no' );
 
-		$max = max( 1, min( 60, absint( $_POST['dgbi_max_results'] ?? 20 ) ) );
+		$max = max( 1, min( 20, absint( $_POST['dgbi_max_results'] ?? 20 ) ) );
 		update_option( self::OPT_MAX_RESULTS, $max, 'no' );
 
 		wp_safe_redirect( add_query_arg(

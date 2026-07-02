@@ -5,6 +5,7 @@
  * Public surface:
  *   run()                 — full synchronous import (batch, keeps backward compat).
  *   search_only()         — step 1 of the AJAX flow: geocode + search, return place list.
+ *   search_for_import()    — duplicate-aware AJAX search that can find the next new batch.
  *   import_single_place() — step 2 of the AJAX flow: detail fetch + listing creation for one place.
  *   listing_exists()      — duplicate check used by Ajax_Import to flag preview results.
  *
@@ -124,34 +125,129 @@ class Importer {
 	 * @return array { places: array, error: string }
 	 */
 	public function search_only( array $args ): array {
-		$keyword     = sanitize_text_field( $args['keyword'] ?? '' );
-		$location    = sanitize_text_field( $args['location'] ?? '' );
-		$radius      = max( 0, min( 50000, intval( $args['radius'] ?? 5000 ) ) );
-		$api_key     = $args['api_key'] ?? '';
-		$max_results = max( 1, min( 60, intval( $args['max_results'] ?? 20 ) ) );
-
-		if ( empty( $keyword ) || empty( $api_key ) ) {
-			return [
-				'places' => [],
-				'error'  => __( 'Keyword and API key are required.', 'directorist-listing-import' ),
-			];
+		$context = $this->prepare_search_context( $args, 60 );
+		if ( ! empty( $context['error'] ) ) {
+			return [ 'places' => [], 'error' => $context['error'] ];
 		}
 
-		$this->client->set_api_key( $api_key );
+		return $this->client->search(
+			$context['query'],
+			$context['radius'],
+			$context['max_results'],
+			$context['lat'],
+			$context['lng']
+		);
+	}
 
-		$query = $location ? "{$keyword} in {$location}" : $keyword;
+	/**
+	 * Search for one AJAX import batch and annotate duplicate status.
+	 *
+	 * In new-only mode, scan up to three 20-result Google pages and stop as soon
+	 * as the requested number of listings not present in Directorist is found.
+	 *
+	 * @param array $args Same keys as search_only(), plus find_new_only.
+	 * @return array{places: array, error: string, scanned: int, skipped_existing: int}
+	 */
+	public function search_for_import( array $args ): array {
+		$context = $this->prepare_search_context( $args, 20 );
+		$result  = [
+			'places'           => [],
+			'error'            => '',
+			'scanned'          => 0,
+			'skipped_existing' => 0,
+		];
 
-		// Geocode the location to get a valid centre for locationBias.
-		// Falls back to text-only search if geocoding fails or no location is given.
-		$lat = 0.0;
-		$lng = 0.0;
-		if ( $location && $radius > 0 ) {
-			$coords = $this->client->geocode( $location );
-			$lat    = $coords['lat'] ?? 0.0;
-			$lng    = $coords['lng'] ?? 0.0;
+		if ( ! empty( $context['error'] ) ) {
+			$result['error'] = $context['error'];
+			return $result;
 		}
 
-		return $this->client->search( $query, $radius, $max_results, $lat, $lng );
+		if ( empty( $args['find_new_only'] ) ) {
+			$search = $this->client->search(
+				$context['query'],
+				$context['radius'],
+				$context['max_results'],
+				$context['lat'],
+				$context['lng']
+			);
+
+			if ( ! empty( $search['error'] ) ) {
+				$result['error'] = $search['error'];
+				return $result;
+			}
+
+			$result['places']  = $this->annotate_duplicate_status( $search['places'] ?? [] );
+			$result['scanned'] = count( $result['places'] );
+			foreach ( $result['places'] as $place ) {
+				if ( ! empty( $place['is_duplicate'] ) ) {
+					$result['skipped_existing']++;
+				}
+			}
+
+			return $result;
+		}
+
+		$seen_place_ids = [];
+		$seen_tokens    = [];
+		$page_token     = '';
+		$pages_fetched  = 0;
+
+		do {
+			$page = $this->client->search_page(
+				$context['query'],
+				$context['radius'],
+				20,
+				$context['lat'],
+				$context['lng'],
+				$page_token
+			);
+			$pages_fetched++;
+
+			if ( ! empty( $page['error'] ) ) {
+				$result['places'] = [];
+				$result['error']  = $page['error'];
+				return $result;
+			}
+
+			$batch = [];
+			foreach ( $page['places'] ?? [] as $place ) {
+				$place_id = sanitize_text_field( $place['place_id'] ?? '' );
+				if ( '' === $place_id || isset( $seen_place_ids[ $place_id ] ) ) {
+					continue;
+				}
+
+				$seen_place_ids[ $place_id ] = true;
+				$place['place_id']            = $place_id;
+				$batch[]                      = $place;
+			}
+
+			$result['scanned'] += count( $batch );
+			$existing_ids       = $this->get_existing_place_id_map( wp_list_pluck( $batch, 'place_id' ) );
+
+			foreach ( $batch as $place ) {
+				if ( isset( $existing_ids[ $place['place_id'] ] ) ) {
+					$result['skipped_existing']++;
+					continue;
+				}
+
+				$place['is_duplicate'] = false;
+				$result['places'][]     = $place;
+				if ( count( $result['places'] ) >= $context['max_results'] ) {
+					break;
+				}
+			}
+
+			$next_token = is_string( $page['next_page_token'] ?? null ) ? $page['next_page_token'] : '';
+			if ( '' === $next_token || isset( $seen_tokens[ $next_token ] ) ) {
+				$page_token = '';
+			} else {
+				$seen_tokens[ $next_token ] = true;
+				$page_token                 = $next_token;
+			}
+		} while ( $page_token && $pages_fetched < 3 && count( $result['places'] ) < $context['max_results'] );
+
+		$result['places'] = array_slice( $result['places'], 0, $context['max_results'] );
+		return $result;
 	}
 
 	/**
@@ -304,6 +400,96 @@ class Importer {
 	}
 
 	// ── Private helpers ───────────────────────────────────────────────────────
+
+	/**
+	 * Validate common search arguments, set the API key, and resolve location bias.
+	 *
+	 * @param array $args        Raw search arguments.
+	 * @param int   $maximum_max Maximum allowed max_results value.
+	 * @return array{query: string, radius: int, max_results: int, lat: float, lng: float, error: string}
+	 */
+	private function prepare_search_context( array $args, int $maximum_max ): array {
+		$keyword     = sanitize_text_field( $args['keyword'] ?? '' );
+		$location    = sanitize_text_field( $args['location'] ?? '' );
+		$radius      = max( 0, min( 50000, intval( $args['radius'] ?? 5000 ) ) );
+		$api_key     = $args['api_key'] ?? '';
+		$max_results = max( 1, min( $maximum_max, intval( $args['max_results'] ?? 20 ) ) );
+
+		if ( empty( $keyword ) || empty( $api_key ) ) {
+			return [
+				'query'       => '',
+				'radius'      => $radius,
+				'max_results' => $max_results,
+				'lat'         => 0.0,
+				'lng'         => 0.0,
+				'error'       => __( 'Keyword and API key are required.', 'directorist-listing-import' ),
+			];
+		}
+
+		$this->client->set_api_key( $api_key );
+
+		$lat = 0.0;
+		$lng = 0.0;
+		if ( $location && $radius > 0 ) {
+			$coords = $this->client->geocode( $location );
+			$lat    = (float) ( $coords['lat'] ?? 0.0 );
+			$lng    = (float) ( $coords['lng'] ?? 0.0 );
+		}
+
+		return [
+			'query'       => $location ? "{$keyword} in {$location}" : $keyword,
+			'radius'      => $radius,
+			'max_results' => $max_results,
+			'lat'         => $lat,
+			'lng'         => $lng,
+			'error'       => '',
+		];
+	}
+
+	/**
+	 * Remove malformed/repeated Google results and add is_duplicate to each place.
+	 */
+	private function annotate_duplicate_status( array $places ): array {
+		$unique = [];
+		foreach ( $places as $place ) {
+			$place_id = sanitize_text_field( $place['place_id'] ?? '' );
+			if ( '' === $place_id || isset( $unique[ $place_id ] ) ) {
+				continue;
+			}
+
+			$place['place_id']   = $place_id;
+			$unique[ $place_id ] = $place;
+		}
+
+		$existing_ids = $this->get_existing_place_id_map( array_keys( $unique ) );
+		foreach ( $unique as $place_id => &$place ) {
+			$place['is_duplicate'] = isset( $existing_ids[ $place_id ] );
+		}
+		unset( $place );
+
+		return array_values( $unique );
+	}
+
+	/**
+	 * Return an associative set of Google Place IDs already stored on listings.
+	 */
+	private function get_existing_place_id_map( array $place_ids ): array {
+		global $wpdb;
+
+		$place_ids = array_values( array_unique( array_filter( array_map( 'sanitize_text_field', $place_ids ) ) ) );
+		if ( empty( $place_ids ) ) {
+			return [];
+		}
+
+		$placeholders = implode( ', ', array_fill( 0, count( $place_ids ), '%s' ) );
+		$query         = "SELECT DISTINCT meta_value FROM {$wpdb->postmeta}
+			WHERE meta_key = %s
+			AND meta_value IN ({$placeholders})";
+		$query_args    = array_merge( [ '_google_place_id' ], $place_ids );
+		$existing      = $wpdb->get_col( $wpdb->prepare( $query, $query_args ) );
+
+		return array_fill_keys( array_map( 'strval', $existing ), true );
+	}
 
 	/**
 	 * Return the post ID of an existing listing for the given place_id, or 0.

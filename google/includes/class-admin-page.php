@@ -105,6 +105,8 @@ class Admin_Page {
 				'searching'         => __( 'Searching Google Places…', 'directorist-listing-import' ),
 				/* translators: %d: number of places found */
 				'preview_heading'   => __( 'Found %d place(s). Select which to import:', 'directorist-listing-import' ),
+				/* translators: 1: new place count, 2: already-imported place count */
+				'new_preview_heading' => __( 'Found %1$d new place(s); skipped %2$d already imported. Select which to import:', 'directorist-listing-import' ),
 				'select_all'        => __( 'Select All', 'directorist-listing-import' ),
 				'deselect_all'      => __( 'Deselect All', 'directorist-listing-import' ),
 				/* translators: %d: number of selected places */
@@ -121,6 +123,8 @@ class Admin_Page {
 					/* translators: %d: updated count */
 					'updated'           => __( '%d listing(s) refreshed with new data from Google.', 'directorist-listing-import' ),
 					'no_results'        => __( 'No places found for that keyword and location.', 'directorist-listing-import' ),
+					/* translators: %d: already-imported place count */
+					'no_new_results'    => __( 'No new listings are available. %d matching place(s) are already imported. Google provides at most 60 results for one search.', 'directorist-listing-import' ),
 					/* translators: %d: review count */
 					'reviews'           => __( '%d Google review(s) imported as Directorist reviews.', 'directorist-listing-import' ),
 					/* translators: %d: description count */
@@ -475,6 +479,16 @@ class Admin_Page {
 						<label>
 							<input type="checkbox" name="import_photos" value="1">
 							<?php esc_html_e( 'Sideload first Google photo as listing featured image', 'directorist-listing-import' ); ?>
+						</label>
+					</td>
+				</tr>
+
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Find New Listings Only', 'directorist-listing-import' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="find_new_only" value="1" checked>
+							<?php esc_html_e( 'Skip already imported businesses and continue through Google results to find the next new listings', 'directorist-listing-import' ); ?>
 						</label>
 					</td>
 				</tr>

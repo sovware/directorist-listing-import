@@ -32,7 +32,21 @@ jQuery( function ( $ ) {
 		return;
 	}
 
-	var importRunning = false;
+	var importRunning   = false;
+	var $findNewOnly    = $form.find( '[name="find_new_only"]' );
+	var $updateExisting = $form.find( '[name="update_existing"]' );
+
+	// These modes contradict each other, so selecting one clears the other.
+	$findNewOnly.on( 'change', function () {
+		if ( this.checked ) {
+			$updateExisting.prop( 'checked', false );
+		}
+	} );
+	$updateExisting.on( 'change', function () {
+		if ( this.checked ) {
+			$findNewOnly.prop( 'checked', false );
+		}
+	} );
 
 	function initFieldMappingUniqueness() {
 		if ( ! $mappingSelects.length ) {
@@ -123,12 +137,16 @@ jQuery( function ( $ ) {
 
 				var data = response.data;
 				if ( ! data.total ) {
-					showError( dgbiAjax.i18n.no_results );
+					if ( data.skipped_existing ) {
+						showWarning( sprintf( dgbiAjax.i18n.no_new_results, data.skipped_existing ) );
+					} else {
+						showWarning( dgbiAjax.i18n.no_results );
+					}
 					$submit.prop( 'disabled', false );
 					return;
 				}
 
-				renderChecklist( data.queue_id, data.places );
+				renderChecklist( data.queue_id, data.places, data.skipped_existing || 0 );
 				$submit.prop( 'disabled', false );
 			} )
 			.fail( function () {
@@ -139,7 +157,7 @@ jQuery( function ( $ ) {
 	}
 
 	// ── Step 2: render checklist ──────────────────────────────────────────────
-	function renderChecklist( queueId, places ) {
+	function renderChecklist( queueId, places, skippedExisting ) {
 		var updateMode = $form.find( '[name="update_existing"]' ).is( ':checked' );
 		var total      = places.length;
 
@@ -147,9 +165,10 @@ jQuery( function ( $ ) {
 
 		// Header
 		html += '<div class="dgbi-checklist-header">';
-		html += '<p class="dgbi-checklist-heading">'
-			+ escHtml( sprintf( dgbiAjax.i18n.preview_heading, total ) )
-			+ '</p>';
+		var heading = skippedExisting && $findNewOnly.is( ':checked' )
+			? sprintf( dgbiAjax.i18n.new_preview_heading, total, skippedExisting )
+			: sprintf( dgbiAjax.i18n.preview_heading, total );
+		html += '<p class="dgbi-checklist-heading">' + escHtml( heading ) + '</p>';
 		html += '<div class="dgbi-checklist-controls">'
 			+ '<a href="#" id="dgbi-select-all">' + escHtml( dgbiAjax.i18n.select_all ) + '</a>'
 			+ ' &nbsp;|&nbsp; '
@@ -177,11 +196,6 @@ jQuery( function ( $ ) {
 		html += '</ul>';
 
 		// Footer with Import button
-		var initialCount = $form.find( '[name="update_existing"]' ).is( ':checked' )
-			? total
-			: places.filter( function ( p ) { return ! p.is_duplicate; } ).length;
-		initialCount = total; // count all checked by default after above render
-
 		html += '<div class="dgbi-checklist-footer">'
 			+ '<button type="button" id="dgbi-import-btn" class="button button-primary" data-queue="' + escHtml( queueId ) + '">'
 			+ escHtml( sprintf( dgbiAjax.i18n.import_selected, countChecked() ) )
@@ -417,6 +431,10 @@ jQuery( function ( $ ) {
 
 	function showError( message ) {
 		$results.html( '<div class="notice notice-error"><p>' + escHtml( message ) + '</p></div>' );
+	}
+
+	function showWarning( message ) {
+		$results.html( '<div class="notice notice-warning"><p>' + escHtml( message ) + '</p></div>' );
 	}
 
 	function resetUI() {
