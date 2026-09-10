@@ -772,6 +772,7 @@ class Importer {
 				'time'                      => intval( $r['time'] ?? 0 ),
 				'relative_time_description' => sanitize_text_field( $r['relative_time_description'] ?? '' ),
 				'text'                      => sanitize_textarea_field( $r['text'] ?? '' ),
+				'language_code'             => sanitize_text_field( $r['language_code'] ?? '' ),
 			];
 		}, $reviews );
 

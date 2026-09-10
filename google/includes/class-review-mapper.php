@@ -104,6 +104,13 @@ class Review_Mapper {
 		// Store the deduplication hash
 		update_comment_meta( $comment_id, 'dgbi_google_review_id', $google_id );
 
+		// Store the review's original language, when known, so themes can
+		// display/filter by it (the import now keeps the reviewer's original
+		// wording instead of Google's auto-translated copy).
+		if ( ! empty( $review['language_code'] ) ) {
+			update_comment_meta( $comment_id, 'dgbi_review_language', sanitize_text_field( $review['language_code'] ) );
+		}
+
 		return $comment_id;
 	}
 

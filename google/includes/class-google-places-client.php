@@ -334,12 +334,18 @@ class Google_Places_Client {
 		$reviews = [];
 		if ( ! empty( $raw['reviews'] ) && \is_array( $raw['reviews'] ) ) {
 			foreach ( $raw['reviews'] as $r ) {
+				// Google auto-translates `text` into whatever language it infers the
+				// request wants; `originalText` holds the reviewer's untouched wording.
+				// Prefer the original so imported reviews keep their original language.
+				$original_text = $r['originalText']['text'] ?? '';
+
 				$reviews[] = [
 					'author_name'               => $r['authorAttribution']['displayName'] ?? '',
 					'rating'                    => isset( $r['rating'] ) ? \intval( $r['rating'] ) : 0,
 					'time'                      => isset( $r['publishTime'] ) ? strtotime( $r['publishTime'] ) : 0,
 					'relative_time_description' => $r['relativePublishTimeDescription'] ?? '',
-					'text'                      => $r['text']['text'] ?? '',
+					'text'                      => '' !== $original_text ? $original_text : ( $r['text']['text'] ?? '' ),
+					'language_code'             => $r['originalText']['languageCode'] ?? ( $r['text']['languageCode'] ?? '' ),
 				];
 			}
 		}
