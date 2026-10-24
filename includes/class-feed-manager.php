@@ -53,6 +53,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return string  New feed ID
      */
     public static function add_feed( array $args ): string {
+        self::native_lock();
         $feeds = self::get_feeds();
 
         $feed = [
@@ -85,6 +86,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return bool
      */
     public static function update_feed( string $id, array $args ): bool {
+        self::native_lock();
         $feeds = self::get_feeds();
         $found = false;
 
@@ -126,6 +128,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return bool
      */
     public static function delete_feed( string $id ): bool {
+        self::native_lock();
         $feeds   = self::get_feeds();
         $initial = count( $feeds );
         $feeds   = array_values( array_filter( $feeds, fn( $f ) => $f['id'] !== $id ) );
@@ -166,5 +169,11 @@ class Directorist_Listing_Import_Feed_Manager {
 
     private static function generate_id(): string {
         return wp_generate_uuid4();
+    }
+
+    private static function native_lock(): void {
+        if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
+            \Directorist\MCP\Safety\Write_Lock::native_lock();
+        }
     }
 }

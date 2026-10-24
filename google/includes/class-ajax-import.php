@@ -62,13 +62,17 @@ class Ajax_Import {
 	 */
 	public function handle_start(): void {
 		$this->verify( 'dlig_ajax' );
+		if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
+			\Directorist\MCP\Safety\Write_Lock::native_lock();
+		}
 
 		// Rate limiting: max 100 import runs per hour per user.
 		$user_id       = get_current_user_id();
 		$rate_key      = 'dgbi_import_count_' . $user_id;
 		$import_count  = (int) get_transient( $rate_key );
+		$combined_count = class_exists( '\DLI_MCP_Service' ) ? \DLI_MCP_Service::quota_count() : $import_count;
 
-		if ( $import_count >= 100 ) {
+		if ( $combined_count >= 100 ) {
 			wp_send_json_error( [
 				'message' => __( 'You have reached the limit of 100 imports per hour. Please wait before running another import.', 'directorist-listing-import' ),
 			] );

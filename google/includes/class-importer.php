@@ -267,6 +267,9 @@ class Importer {
 	 * @return array { imported, updated, skipped, errors, reviews, reviews_created, descriptions, place_name }
 	 */
 	public function import_single_place( array $place, array $args ): array {
+		if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
+			\Directorist\MCP\Safety\Write_Lock::native_lock();
+		}
 		$result = [
 			'imported'        => 0,
 			'updated'         => 0,
