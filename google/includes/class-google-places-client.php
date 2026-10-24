@@ -325,7 +325,7 @@ class Google_Places_Client {
 	/**
 	 * Normalise a Place Details response from the New API.
 	 */
-	private function normalise_detail( array $raw ): array {
+	public function normalise_detail( array $raw ): array {
 		$summary       = $raw['editorialSummary']['text'] ?? '';
 		$opening_hours = $raw['regularOpeningHours'] ?? [];
 		$types         = ! empty( $raw['types'] ) && \is_array( $raw['types'] ) ? array_values( array_filter( $raw['types'] ) ) : [];

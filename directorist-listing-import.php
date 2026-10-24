@@ -3,7 +3,7 @@
  * Plugin Name:       Listing Importer
  * Plugin URI:        https://directorist.com/
  * Description:       Bulk import listings from Google Business Profile data and legal RSS/feed sources.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Author:            wpwax
  * Author URI:        https://wpwax.com/
  * License:           GPL-2.0+
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
-define( 'DLI_VERSION',   '1.1.0' );
+define( 'DLI_VERSION',   '1.2.0' );
 define( 'DLI_FILE',      __FILE__ );
 define( 'DLI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DLI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,17 @@ require_once DLIG_DIR . 'includes/class-importer.php';
 require_once DLIG_DIR . 'includes/class-admin-page.php';
 require_once DLIG_DIR . 'includes/class-ajax-import.php';
 require_once DLIG_DIR . 'includes/class-plugin.php';
+
+// Registration is independent of the current actor and never upgrades storage.
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-store.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-source.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-listing-writer.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-service.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-schema.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-integration.php';
+add_action( 'admin_init', [ 'DLI_MCP_Store', 'upgrade' ] );
+add_action( 'directorist_mcp_register', [ 'DLI_MCP_Integration', 'register' ] );
+add_action( 'dli_mcp_worker', [ 'DLI_MCP_Service', 'work' ] );
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 add_action( 'plugins_loaded', 'directorist_listing_import_init' );
@@ -128,6 +139,7 @@ function directorist_listing_import_migrate_legacy_options(): void {
 register_activation_hook( DLI_FILE, 'directorist_listing_import_activate' );
 function directorist_listing_import_activate() {
     directorist_listing_import_migrate_legacy_options();
+    DLI_MCP_Store::upgrade();
 
     if ( class_exists( '\DLIG\Installer' ) ) {
         \DLIG\Installer::activate();

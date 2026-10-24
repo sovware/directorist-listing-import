@@ -46,7 +46,18 @@ class Directorist_Listing_Import_Importer {
      * @return array{ imported: int, skipped: int, errors: int }
      */
     public function run_feed( array $feed ): array {
+        if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
+            \Directorist\MCP\Safety\Write_Lock::native_lock();
+        }
         $result = [ 'imported' => 0, 'skipped' => 0, 'errors' => 0 ];
+
+        // A due-feed array may have been read before another request acquired
+        // the shared lock and removed/edited this configuration.
+        if ( ! empty( $feed['id'] ) ) {
+            $current = Directorist_Listing_Import_Feed_Manager::get_feed( $feed['id'] );
+            if ( ! $current ) { return $result; }
+            $feed = $current;
+        }
 
         if ( empty( $feed['url'] ) ) {
             $this->log( $feed, $result, 'Feed URL is empty.' );
