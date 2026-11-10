@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Listing Importer
+ * Plugin Name:       Directorist - Listing Importer
  * Plugin URI:        https://directorist.com/
  * Description:       Bulk import listings from Google Business Profile data and legal RSS/feed sources.
  * Version:           1.3.0
