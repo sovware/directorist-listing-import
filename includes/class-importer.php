@@ -46,9 +46,7 @@ class Directorist_Listing_Import_Importer {
      * @return array{ imported: int, skipped: int, errors: int }
      */
     public function run_feed( array $feed ): array {
-        if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
-            \Directorist\MCP\Safety\Write_Lock::native_lock();
-        }
+        \DLI_MCP_Compatibility::native_lock();
         $result = [ 'imported' => 0, 'skipped' => 0, 'errors' => 0 ];
 
         // A due-feed array may have been read before another request acquired

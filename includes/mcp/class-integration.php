@@ -4,16 +4,16 @@ defined( 'ABSPATH' ) || exit;
 
 final class DLI_MCP_Integration {
     const OWNER = 'listing-import';
-    const CONTRACT = '1.1.0';
+    const CONTRACT = '1.2.0';
     public static function admin(): bool { return get_current_user_id() > 0 && current_user_can( 'manage_options' ); }
     public static function listing_cap(): bool {
         $type = get_post_type_object( defined( 'ATBDP_POST_TYPE' ) ? ATBDP_POST_TYPE : 'at_biz_dir' );
-        return $type && current_user_can( $type->cap->create_posts ) && \ATBDP_Add_Listing::current_user_can_create();
+        return is_callable( [ '\ATBDP_Add_Listing', 'current_user_can_create' ] ) && $type && current_user_can( $type->cap->create_posts ) && \ATBDP_Add_Listing::current_user_can_create();
     }
     public static function available(): bool {
         $plugin = plugin_basename( DLI_FILE );
         $active = array_merge( (array) get_option( 'active_plugins', [] ), array_keys( (array) get_site_option( 'active_sitewide_plugins', [] ) ) );
-        return defined( 'ATBDP_VERSION' ) && class_exists( '\Directorist\MCP\Tool_Providers\Listings\Write_Callbacks' ) && in_array( $plugin, $active, true ) && in_array( 'directorist/directorist-base.php', $active, true );
+        return '' === DLI_MCP_Compatibility::reason() && in_array( $plugin, $active, true ) && in_array( 'directorist/directorist-base.php', $active, true );
     }
     /** Refresh authority after a provider request or between worker items. */
     public static function refresh_actor( int $actor ): void {
@@ -24,14 +24,16 @@ final class DLI_MCP_Integration {
     }
     public static function admission( int $actor ): bool { return $actor === get_current_user_id() && self::admin(); }
     public static function permitted( string $action, array $args, int $actor ): bool {
-        if ( ! self::admission( $actor ) || ! self::available() || ! DLI_MCP_Schema::typed( $args, DLI_MCP_Schema::input( $action ) ) ) { return false; }
+        if ( ! self::admission( $actor ) || ! self::available() || '' !== DLI_MCP_Compatibility::reason( $action ) || ! DLI_MCP_Schema::typed( $args, DLI_MCP_Schema::input( $action ) ) ) { return false; }
         return ! in_array( $action, [ 'create-feed', 'update-feed', 'delete-feed', 'import-candidates', 'run-feed', 'import-photo' ], true ) || self::listing_cap();
     }
     public static function actions(): array { return [ 'get-settings', 'update-settings', 'get-field-mapping', 'update-field-mapping', 'list-import-history', 'run-feed', 'get-place-details', 'import-photo', 'get-schema', 'list-feeds', 'get-feed', 'create-feed', 'update-feed', 'delete-feed', 'discover-feed', 'search-places', 'get-staged-candidates', 'import-candidates', 'list-jobs', 'get-job', 'cancel-job', 'list-import-logs' ]; }
     public static function register( $registry ): void {
-        $result = $registry->register_extension( [ 'owner' => self::OWNER, 'plugin' => plugin_basename( DLI_FILE ), 'label' => 'Directorist Listing Import', 'version' => DLI_VERSION, 'contract_version' => self::CONTRACT, 'api_version' => 1, 'capability' => 'manage_options', 'requires' => [ 'directorist/directorist-base.php' ], 'availability' => [ self::class, 'available' ], 'admission' => [ self::class, 'admission' ] ] );
+        if ( '' !== DLI_MCP_Compatibility::reason() || ! is_object( $registry ) || ! is_callable( [ $registry, 'register_extension' ] ) || ! is_callable( [ $registry, 'register_tool' ] ) ) { return; }
+        $result = $registry->register_extension( [ 'owner' => self::OWNER, 'plugin' => plugin_basename( DLI_FILE ), 'label' => 'Directorist Listing Import', 'version' => DLI_VERSION, 'contract_version' => self::CONTRACT, 'api_version' => 1, 'requires_core' => DLI_MCP_Compatibility::MINIMUM_CORE, 'capability' => 'manage_options', 'requires' => [ 'directorist/directorist-base.php' ], 'availability' => [ self::class, 'available' ], 'admission' => [ self::class, 'admission' ] ] );
         if ( is_wp_error( $result ) ) { return; }
         foreach ( self::actions() as $action ) {
+            if ( '' !== DLI_MCP_Compatibility::reason( $action ) ) { continue; }
             $external = in_array( $action, [ 'discover-feed', 'search-places', 'run-feed', 'get-place-details', 'import-photo' ], true );
             $write = $external || in_array( $action, [ 'create-feed', 'update-feed', 'delete-feed', 'import-candidates', 'cancel-job', 'update-settings', 'update-field-mapping' ], true );
             $definition = [ 'owner' => self::OWNER, 'action' => $action, 'domain' => 'extension', 'group' => 'Listing Import', 'description' => self::description( $action ), 'contract_version' => self::CONTRACT, 'write' => $write, 'schema' => DLI_MCP_Schema::input( $action ), 'output_schema' => DLI_MCP_Schema::output( $action ), 'discover' => [ self::class, 'admission' ], 'permission' => static function ( array $args, int $actor ) use ( $action ): bool { return self::permitted( $action, $args, $actor ); }, 'project' => static function ( array $result, array $args, int $actor ) use ( $action ): array {

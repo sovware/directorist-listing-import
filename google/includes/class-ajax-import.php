@@ -62,9 +62,7 @@ class Ajax_Import {
 	 */
 	public function handle_start(): void {
 		$this->verify( 'dlig_ajax' );
-		if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
-			\Directorist\MCP\Safety\Write_Lock::native_lock();
-		}
+		\DLI_MCP_Compatibility::native_lock();
 
 		// Rate limiting: max 100 import runs per hour per user.
 		$user_id       = get_current_user_id();

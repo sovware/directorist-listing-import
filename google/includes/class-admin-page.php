@@ -633,7 +633,7 @@ class Admin_Page {
 			if ( empty( $_POST['dgbi_clear_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['dgbi_clear_nonce'] ), 'dgbi_clear_history_action' ) ) {
 				wp_die( esc_html__( 'Security check failed.', 'directorist-listing-import' ) );
 			}
-			if ( class_exists( '\\Directorist\\MCP\\Safety\\Write_Lock' ) ) { \Directorist\MCP\Safety\Write_Lock::native_lock(); }
+			\DLI_MCP_Compatibility::native_lock();
 			update_option( 'dgbi_import_history', [], false );
 			wp_safe_redirect( add_query_arg(
 				[ 'page' => DLI_PAGE_SLUG, 'tab' => 'google', 'google_tab' => 'history', 'dgbi_cleared' => '1' ],

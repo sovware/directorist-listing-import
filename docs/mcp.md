@@ -1,6 +1,17 @@
 # Listing Import MCP integration
 
-Listing Importer 1.3.0 contributes extension API 1 tools under owner `listing-import`, contract `1.1.0`, using Directorist's server, permissions, confirmations and durable operation records. Install the accompanying Directorist core changes: bounded write-only credential inputs and native attachment support for the official Pricing Plans image validator.
+Listing Importer 1.3.0 contributes extension API 1 tools under owner `listing-import`, contract `1.2.0`, using Directorist's server, permissions, confirmations and durable operation records.
+
+## Core compatibility
+
+| Directorist core | MCP behavior | Native UI |
+| --- | --- | --- |
+| Before 8.11 | MCP tools and workers are disabled. The importer screen explains that MCP requires an update. | Google Business and RSS/Feed screens remain available. |
+| 8.11–8.11.2 | 26 tools remain available. `update-settings` is omitted because its credential input requires the newer schema validator. Reads, mapping updates and compatible imports remain available. Image assignment and automatic image sync using a native image-field subclass require 8.11.3. | Settings, mappings, history and imports remain available. |
+| 8.11.3 or later | All 27 tools are available when required core classes and methods are present. | Existing behavior is retained. |
+| Missing or incomplete MCP runtime | Unsupported tools and workers are disabled, with an update/reinstall message. A version number alone does not enable missing functionality. | Optional MCP lock calls are checked before use. |
+
+`get-schema` returns a `compatibility` object containing the detected core version, minimum versions, settings-update and image-import availability, and actionable upgrade guidance. Unsupported image operations fail with `core_update_required` before downloading photos. Pausing or deleting a source remains possible. Existing checkpoints and source configuration are preserved if a core downgrade prevents workers from running. After updating core, edit/resume the source or reactivate the importer to restore its scheduled events and queued workers.
 
 There are **27 tools**: 22 operations and five generated external-operation readers. No MCP operation clears, deletes or resets import history or logs. The native UI's existing history-clearing controls remain available only in the UI.
 

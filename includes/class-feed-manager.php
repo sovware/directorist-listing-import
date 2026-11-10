@@ -176,8 +176,6 @@ class Directorist_Listing_Import_Feed_Manager {
     }
 
     private static function native_lock(): void {
-        if ( class_exists( '\Directorist\MCP\Safety\Write_Lock' ) ) {
-            \Directorist\MCP\Safety\Write_Lock::native_lock();
-        }
+        \DLI_MCP_Compatibility::native_lock();
     }
 }

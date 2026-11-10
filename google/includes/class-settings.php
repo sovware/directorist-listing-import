@@ -91,7 +91,7 @@ class Settings {
 		}
 
 		check_admin_referer( 'dlig_save_google_settings_action', 'dgbi_settings_nonce' );
-        if ( class_exists( '\\Directorist\\MCP\\Safety\\Write_Lock' ) ) { \Directorist\MCP\Safety\Write_Lock::native_lock(); }
+        \DLI_MCP_Compatibility::native_lock();
 
 		// API key: only update if the submitted value is not the placeholder mask.
 		if ( isset( $_POST['dgbi_api_key'] ) ) {
@@ -129,7 +129,7 @@ class Settings {
 		}
 
 		check_admin_referer( 'dlig_remove_google_api_key_action', 'dgbi_remove_nonce' );
-        if ( class_exists( '\\Directorist\\MCP\\Safety\\Write_Lock' ) ) { \Directorist\MCP\Safety\Write_Lock::native_lock(); }
+        \DLI_MCP_Compatibility::native_lock();
 
 		update_option( self::OPT_API_KEY, '', 'no' );
 

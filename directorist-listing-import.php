@@ -59,6 +59,9 @@ require_once DLIG_DIR . 'includes/class-admin-page.php';
 require_once DLIG_DIR . 'includes/class-ajax-import.php';
 require_once DLIG_DIR . 'includes/class-plugin.php';
 
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-compatibility.php';
+add_action( 'admin_notices', [ 'DLI_MCP_Compatibility', 'admin_notice' ] );
+
 // Registration is independent of the current actor and never upgrades storage.
 require_once DLI_PLUGIN_DIR . 'includes/mcp/class-store.php';
 require_once DLI_PLUGIN_DIR . 'includes/mcp/class-source.php';
@@ -150,7 +153,7 @@ function directorist_listing_import_activate() {
     }
 
     foreach ( Directorist_Listing_Import_Feed_Manager::get_feeds() as $feed ) { if ( ! empty( $feed['mcp_actor'] ) ) { DLI_MCP_Sync::reschedule( $feed['id'] ); } }
-    if ( DLI_MCP_Store::ready() ) { foreach ( DLI_MCP_Store::rows( 'job', 'admin' ) as $job ) { if ( in_array( $job['status'], [ 'queued', 'running', 'stop-requested' ], true ) && ! wp_next_scheduled( 'dli_mcp_worker', [ $job['job_id'] ] ) ) { wp_schedule_single_event( time() + 1, 'dli_mcp_worker', [ $job['job_id'] ] ); } } }
+    if ( '' === DLI_MCP_Compatibility::reason() && DLI_MCP_Store::ready() ) { foreach ( DLI_MCP_Store::rows( 'job', 'admin' ) as $job ) { if ( in_array( $job['status'], [ 'queued', 'running', 'stop-requested' ], true ) && ! wp_next_scheduled( 'dli_mcp_worker', [ $job['job_id'] ] ) ) { wp_schedule_single_event( time() + 1, 'dli_mcp_worker', [ $job['job_id'] ] ); } } }
 
     // Seed default settings
     if ( ! get_option( DLI_OPTION_SETTINGS ) ) {

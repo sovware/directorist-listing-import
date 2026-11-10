@@ -12,8 +12,10 @@ final class DLI_MCP_Sync {
 
     public static function reschedule( string $id ): void {
         wp_clear_scheduled_hook( 'dli_mcp_sync_feed', [ $id ] );
+        if ( '' !== DLI_MCP_Compatibility::reason() ) { return; }
         $feed = Directorist_Listing_Import_Feed_Manager::get_feed( $id );
         if ( ! $feed || empty( $feed['mcp_actor'] ) || 'active' !== $feed['status'] || 'sync' !== $feed['sync_mode'] || 'manual' === $feed['interval'] ) { return; }
+        if ( '' !== DLI_MCP_Compatibility::image_reason( (int) ( $feed['directory_type'] ?: directorist_get_default_directory() ) ) ) { return; }
         $delay = [ 'hourly' => HOUR_IN_SECONDS, 'twicedaily' => 12 * HOUR_IN_SECONDS, 'daily' => DAY_IN_SECONDS ][ $feed['interval'] ];
         $result = wp_schedule_event( max( time() + 1, (int) $feed['last_run'] + $delay ), $feed['interval'], 'dli_mcp_sync_feed', [ $id ], true );
         DLI_MCP_Service::check( ! is_wp_error( $result ) && false !== $result, 'Could not schedule this feed.', 'scheduler_unavailable' );
@@ -23,6 +25,7 @@ final class DLI_MCP_Sync {
         $feed = DLI_MCP_Service::feed( $id );
         $directory = (int) ( $feed['directory_type'] ?: directorist_get_default_directory() );
         DLI_MCP_Listing_Writer::directory( $directory, (int) $feed['category'] );
+        DLI_MCP_Compatibility::assert_images( $directory );
         foreach ( DLI_MCP_Store::rows( 'job', 'admin' ) as $job ) {
             DLI_MCP_Service::check( ( $job['feed_id'] ?? '' ) !== $id || ! in_array( $job['status'], [ 'queued', 'running', 'stop-requested', 'outcome-unknown' ], true ), 'This source has unfinished work. Inspect its existing job.', 'dependency_blocked' );
         }
@@ -73,7 +76,7 @@ final class DLI_MCP_Sync {
 
     /** A recurring event handles exactly its selected feed and never the global runner. */
     public static function tick( string $id ): void {
-        if ( ! class_exists( '\Directorist\MCP\Safety\Write_Lock' ) || ! DLI_MCP_Store::ready() ) { return; }
+        if ( '' !== DLI_MCP_Compatibility::reason() || ! DLI_MCP_Store::ready() ) { return; }
         $prior = get_current_user_id(); $owned = ! \Directorist\MCP\Safety\Write_Lock::is_locked();
         \Directorist\MCP\Safety\Write_Lock::lock();
         try {

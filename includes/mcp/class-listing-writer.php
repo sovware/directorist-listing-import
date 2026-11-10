@@ -95,6 +95,7 @@ final class DLI_MCP_Listing_Writer {
         }
         if ( $existing ) { foreach ( [ 'categories', 'locations', 'tags' ] as $key ) { if ( isset( $fields[ $key ] ) ) { $fields[ $key ] = [ 'add' => $fields[ $key ] ]; } } }
         if ( ! empty( $item['attachment_ids'] ) ) {
+            DLI_MCP_Compatibility::assert_images( $directory );
             DLI_MCP_Service::check( isset( Listing_Schema::definitions( $directory )['images'] ), 'This directory does not admit images.', 'invalid_mapping' );
             foreach ( $item['attachment_ids'] as $attachment ) { \Directorist\MCP\Runtime\Access_Control::attachment( $attachment, true ); }
             $fields['images'] = $item['attachment_ids'];

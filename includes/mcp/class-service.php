@@ -47,6 +47,7 @@ final class DLI_MCP_Service {
     }
 
     public static function read( string $action, array $args ): array {
+        DLI_MCP_Compatibility::assert_supported( $action );
         if ( 'get-settings' === $action ) { return DLI_MCP_Configuration::settings( $args['source_type'] ); }
         if ( 'get-field-mapping' === $action ) { return DLI_MCP_Configuration::mapping( $args['directory_id'], $args['page'] ?? 1, $args['per_page'] ?? 100 ); }
         if ( 'list-import-history' === $action ) { return DLI_MCP_Configuration::history( $args ); }
@@ -55,7 +56,7 @@ final class DLI_MCP_Service {
             DLI_MCP_Listing_Writer::directory( $directory );
             $fields = [];
             foreach ( DLI_MCP_Listing_Writer::mappings( $directory ) as $key => $definition ) { $fields[] = [ 'target' => $key, 'type' => $definition['schema']['type'], 'required' => $definition['required'] ]; }
-            return [ 'directory_id' => $directory, 'source_types' => [ 'feed', 'places' ], 'source_fields' => DLI_MCP_Listing_Writer::SOURCES, 'mappings' => $fields, 'statuses' => \Directorist\MCP\Tool_Providers\Listings\Listing_Policy::initial_statuses( $directory ), 'duplicate_modes' => [ 'find_new_only', 'update_existing' ], 'modes' => [ 'one_time', 'sync' ], 'intervals' => [ 'manual', 'hourly', 'twicedaily', 'daily' ], 'feed_states' => [ 'paused', 'active' ], 'provider_configured' => '' !== ( new \DLIG\Settings() )->get_api_key(), 'storage_ready' => DLI_MCP_Store::ready(), 'scheduled_runs_available' => true, 'prerequisite_reason' => 'Unattended sync and job progress require a working WP-Cron runner.', 'history_read_only' => true, 'cron_disabled' => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON, 'google_source_fields' => array_keys( ( new \DLIG\Field_Mapping() )->get_source_fields() ), 'snapshot_ttl_seconds' => self::TTL, 'max_candidates' => 50, 'places_result_limit' => ( new \DLIG\Settings() )->get_max_results(), 'places_requests_per_hour' => 100, 'continuation_pages' => DLI_MCP_Source::MAX_PAGES, 'media_policy' => 'Explicit attachment references or separately staged candidate photos; no remote work inside listing commits.', 'schema_version' => DLI_MCP_Listing_Writer::fingerprint( $directory ) ];
+            return [ 'directory_id' => $directory, 'source_types' => [ 'feed', 'places' ], 'source_fields' => DLI_MCP_Listing_Writer::SOURCES, 'mappings' => $fields, 'statuses' => \Directorist\MCP\Tool_Providers\Listings\Listing_Policy::initial_statuses( $directory ), 'duplicate_modes' => [ 'find_new_only', 'update_existing' ], 'modes' => [ 'one_time', 'sync' ], 'intervals' => [ 'manual', 'hourly', 'twicedaily', 'daily' ], 'feed_states' => [ 'paused', 'active' ], 'provider_configured' => '' !== ( new \DLIG\Settings() )->get_api_key(), 'storage_ready' => DLI_MCP_Store::ready(), 'compatibility' => DLI_MCP_Compatibility::status( $directory ), 'scheduled_runs_available' => '' === DLI_MCP_Compatibility::image_reason( $directory ), 'prerequisite_reason' => 'Unattended sync and job progress require a working WP-Cron runner.', 'history_read_only' => true, 'cron_disabled' => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON, 'google_source_fields' => array_keys( ( new \DLIG\Field_Mapping() )->get_source_fields() ), 'snapshot_ttl_seconds' => self::TTL, 'max_candidates' => 50, 'places_result_limit' => ( new \DLIG\Settings() )->get_max_results(), 'places_requests_per_hour' => 100, 'continuation_pages' => DLI_MCP_Source::MAX_PAGES, 'media_policy' => 'Explicit attachment references or separately staged candidate photos; no remote work inside listing commits.', 'schema_version' => DLI_MCP_Listing_Writer::fingerprint( $directory ) ];
         }
         if ( 'get-feed' === $action ) { return self::safe_feed( self::feed( $args['feed_id'] ) ); }
         if ( 'list-feeds' === $action ) {
@@ -101,6 +102,7 @@ final class DLI_MCP_Service {
     }
 
     public static function prepare( string $action, array $args ): array {
+        DLI_MCP_Compatibility::assert_supported( $action );
         $args = self::payload( $args );
         self::check( DLI_MCP_Store::ready(), 'Open the native admin page to complete the import storage upgrade.', 'prerequisite_missing' );
         if ( in_array( $action, [ 'update-settings', 'update-field-mapping' ], true ) ) { return DLI_MCP_Configuration::prepare( $action, $args ); }
@@ -136,6 +138,7 @@ final class DLI_MCP_Service {
             self::check( ! empty( trim( $after['name'] ?? '' ) ), 'Feed name is required.' );
             $after['url'] = DLI_MCP_Source::url( $after['url'] ); $after['source_url'] = $after['url'];
             DLI_MCP_Listing_Writer::directory( $after['directory_type'], $after['category'] );
+            if ( 'active' === $after['status'] ) { DLI_MCP_Compatibility::assert_images( $after['directory_type'] ); }
         }
         return [ 'state' => [ $before, $after, get_option( DLI_OPTION_FEEDS, [] ) ], 'preview' => [ 'feed_id' => $before['id'] ?? '', 'before' => $before ? self::safe_feed( $before ) : (object) [], 'after' => 'delete-feed' === $action ? (object) [] : [ 'name' => $after['name'], 'source' => DLI_MCP_Source::descriptor( $after['url'] ), 'directory_id' => $after['directory_type'], 'category_id' => $after['category'], 'mode' => $after['sync_mode'], 'interval' => $after['interval'], 'status' => $after['status'] ], 'scheduling_effect' => 'delete-feed' === $action ? 'Remove configuration and future eligibility; imported listings are retained.' : ( 'active' === $after['status'] ? 'Schedule bounded feed discovery and durable import jobs at the selected interval.' : 'Paused: no automatic or immediate import.' ) ], 'execute' => static function () use ( $action, $args, $after, $create ) {
             if ( 'delete-feed' === $action ) { self::check( Directorist_Listing_Import_Feed_Manager::delete_feed( $args['feed_id'] ), 'Feed deletion failed.' ); wp_clear_scheduled_hook( 'dli_mcp_sync_feed', [ $args['feed_id'] ] ); return [ 'feed_id' => $args['feed_id'], 'deleted' => true ]; }
@@ -214,7 +217,7 @@ final class DLI_MCP_Service {
                 if ( $google ) { ++$count; }
             }
         }
-        foreach ( DLI_MCP_Store::rows( 'photo-intent' ) as $intent ) { if ( ! empty( $intent['google'] ) && ( $intent['created'] ?? 0 ) > time() - HOUR_IN_SECONDS ) { ++$count; } }
+        foreach ( DLI_MCP_Store::ready() ? DLI_MCP_Store::rows( 'photo-intent' ) : [] as $intent ) { if ( ! empty( $intent['google'] ) && ( $intent['created'] ?? 0 ) > time() - HOUR_IN_SECONDS ) { ++$count; } }
         return $count;
     }
     public static function dispatch( string $action, string $operation, array $args ): array {
@@ -245,6 +248,7 @@ final class DLI_MCP_Service {
     }
 
     public static function prepare_import( array $args, bool $feed_run = false ): array {
+        if ( ! empty( $args['import_photos'] ) ) { DLI_MCP_Compatibility::assert_images( $args['directory_id'] ); }
         $snapshot = self::snapshot( $args['snapshot_id'] );
         $source_type = $snapshot['source_type'] ?? ( ! empty( $snapshot['candidates'][0] ) && 'places' === $snapshot['candidates'][0]['source'] ? 'places' : 'feed' );
         if ( ! isset( $args['status'] ) ) { $args['status'] = DLI_MCP_Configuration::settings( $source_type )['default_status']; }
@@ -322,7 +326,7 @@ final class DLI_MCP_Service {
 
     /** Worker reentry resumes a checkpoint; each listing and outcome commit together. */
     public static function work( string $job_id ): void {
-        if ( ! class_exists( Write_Lock::class ) || ! DLI_MCP_Store::ready() ) { return; }
+        if ( '' !== DLI_MCP_Compatibility::reason() || ! DLI_MCP_Store::ready() ) { return; }
         $actor_before = get_current_user_id();
         $started = microtime( true );
         for ( $turn = 0; $turn < 50; ++$turn ) {
@@ -349,6 +353,7 @@ final class DLI_MCP_Service {
                         $current = DLI_MCP_Listing_Writer::plan( $item['candidate'], $job['args'], $item['input'] );
                         self::check( self::hash( $current ) === self::hash( $item['plan'] ), 'Candidate state changed; obtain a fresh preview.', 'candidate_changed' );
                         if ( ! empty( $job['args']['import_photos'] ) && 'skip' !== $current['decision'] && empty( $item['input']['attachment_ids'] ) && empty( $item['media_checked'] ) ) {
+                            DLI_MCP_Compatibility::assert_images( $job['args']['directory_id'] );
                             $photo = DLI_MCP_Google::photo_for_item( $job, $item );
                             DLI_MCP_Integration::refresh_actor( $job['actor'] );
                             self::check( DLI_MCP_Integration::admin() && DLI_MCP_Integration::available() && DLI_MCP_Integration::listing_cap(), 'Import authority was revoked during photo fetching.', 'permission_blocked' );

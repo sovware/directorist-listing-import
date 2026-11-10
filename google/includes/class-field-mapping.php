@@ -313,7 +313,7 @@ class Field_Mapping {
 		}
 
 		check_admin_referer( 'dlig_save_google_field_mapping_action', 'dgbi_field_mapping_nonce' );
-        if ( class_exists( '\\Directorist\\MCP\\Safety\\Write_Lock' ) ) { \Directorist\MCP\Safety\Write_Lock::native_lock(); }
+        \DLI_MCP_Compatibility::native_lock();
 
 		$directory_id = $this->resolve_directory_id( absint( $_POST['dgbi_mapping_directory'] ?? 0 ) );
 		$all_maps     = get_option( self::OPT_FIELD_MAP, [] );

@@ -32,6 +32,7 @@ final class DLI_MCP_Configuration {
 
     public static function prepare( string $action, array $args ): array {
         if ( 'update-settings' === $action ) {
+            DLI_MCP_Compatibility::assert_supported( $action );
             $source = $args['source_type']; $before = self::settings( $source ); $changes = $args['changes'];
             DLI_MCP_Service::check( count( $changes ) > 0, 'Supply at least one setting.' );
             $allowed = 'places' === $source ? [ 'default_status', 'max_results', 'api_key', 'remove_key' ] : [ 'default_status', 'batch_size' ];
