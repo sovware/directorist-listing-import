@@ -63,7 +63,7 @@ final class DLI_MCP_Store {
     }
 
     public static function invalidate(): void {
-        wp_cache_delete( DLI_OPTION_FEEDS, 'options' );
+        foreach ( [ DLI_OPTION_FEEDS, DLI_OPTION_SETTINGS, DLI_OPTION_LOGS, 'dgbi_import_history', \DLIG\Settings::OPT_API_KEY, \DLIG\Settings::OPT_DEFAULT_STATUS, \DLIG\Settings::OPT_MAX_RESULTS, \DLIG\Field_Mapping::OPT_FIELD_MAP, 'cron' ] as $option ) { wp_cache_delete( $option, 'options' ); }
         wp_cache_delete( 'alloptions', 'options' );
         wp_cache_delete( 'notoptions', 'options' );
         if ( function_exists( 'wp_cache_set_posts_last_changed' ) ) { wp_cache_set_posts_last_changed(); }

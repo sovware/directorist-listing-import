@@ -1,114 +1,151 @@
 # Listing Import MCP integration
 
-Listing Importer 1.2.0 contributes extension API 1 tools under owner `listing-import`, contract `1.0.0`. It uses Directorist's existing server, permission guards, confirmation tokens and durable external-operation records. No alternative server, generated bulk action, credential tool or global cron runner is registered.
+Listing Importer 1.3.0 contributes extension API 1 tools under owner `listing-import`, contract `1.1.0`, using Directorist's server, permissions, confirmations and durable operation records. Install the accompanying Directorist core changes: bounded write-only credential inputs and native attachment support for the official Pricing Plans image validator.
 
-Install the accompanying Directorist core changes with this extension. Those changes keep the native MCP listing image path free of filesystem work, preserve omitted image references, and allow a currently authorized administrator to inspect an external operation initiated by another administrator. Current tool permission and extension admission still apply.
+There are **27 tools**: 22 operations and five generated external-operation readers. No MCP operation clears, deletes or resets import history or logs. The native UI's existing history-clearing controls remain available only in the UI.
 
-## Available tools
+## Tools
 
-All names start with `directorist-listing-import-`. Every tool requires `manage_options`; feed mutations and importing also require native listing creation capability. Listing writes apply the current native object, directory, submission, publication and entitlement policies.
+All names start with `directorist-listing-import-`. All require `manage_options`; feed mutations, source runs, candidate imports and photo imports also require native listing creation permission. Media additionally requires `upload_files`. Listing writes retain native directory, submission, publication and entitlement validation.
 
-| Tools | Behavior |
+| Tool suffix | Behavior |
 | --- | --- |
-| `get-schema` | Effective directory mappings, required fields, statuses, sources, bounds, provider configuration flag and scheduler prerequisite. |
-| `list-feeds`, `get-feed` | Local configuration reads; source descriptors contain only scheme and host. |
-| `create-feed`, `update-feed`, `delete-feed` | Previewed configuration changes. Creation explicitly passes `paused` and `manual`; it does not run an import. Deletion retains imported listings and refuses active job dependencies. |
-| `discover-feed` | Confirmed bounded RSS/Atom discovery from an explicitly approved public URL. |
-| `search-places` | Confirmed, potentially billable, single Google Places text-search POST. |
-| `discover-feed-operation`, `search-places-operation` | Generated readers of the original durable operation. They never send a new provider request or rerun the native writer. |
-| `get-staged-candidates` | Authorized local staged reads with duplicate hints, quality, expiry and an opaque continuation. |
-| `import-candidates` | One durable job for 1–50 explicit, unique candidate IDs and client references. Each item is independent. |
-| `list-jobs`, `get-job`, `list-import-logs` | Local progress, per-item outcomes, safe references, filtered totals and pagination. No read starts a worker. |
-| `cancel-job` | Stops future items at the next lock/checkpoint and retains completed results. |
+| `get-schema` | Active native mappings, Google source fields, statuses, bounds, provider/storage readiness and WP-Cron diagnostics. |
+| `get-settings` | Read saved Google (`source_type: places`) or RSS (`source_type: feed`) settings. Never returns the key. |
+| `update-settings` | Preview/save selected native UI settings, including encrypted replacement or removal of the Google key. |
+| `get-field-mapping` | Read saved effective per-directory Google mapping, source labels and compatible native destinations. |
+| `update-field-mapping` | Preview/save selected mapping rows or restore mapping defaults with `reset:true`. |
+| `list-import-history` | Read the actual Google or RSS UI history store, with pagination and safe error counts. No clearing. |
+| `list-feeds`, `get-feed` | Read source configuration, version, managed-sync flag, next event and last job ID. Source descriptors reveal only scheme/host. |
+| `create-feed`, `update-feed`, `delete-feed` | Preview/save source configuration. Defaults are paused/manual. Active recurring sources use the staged worker. Deletion retains listings/history and refuses active job dependencies. |
+| `discover-feed` | Confirm bounded discovery from an approved public RSS/Atom URL or HTML page declaring a feed. |
+| `search-places` | Confirm one bounded, potentially billable Google Places text search. Returns rich mapping fields and an opaque continuation. |
+| `get-place-details` | Confirm one potentially billable details request for a staged Google candidate. Creates a fresh one-candidate snapshot with mapping data, opening hours, reviews and a private photo reference. |
+| `import-photo` | Confirm download of a staged Google photo or feed image enclosure to the media library. Returns an authorized attachment ID. |
+| `import-candidates` | Preview/accept a durable job for 1–50 explicit unique candidates. Supports saved Google mappings, reviews, photos, category/location and duplicate handling. |
+| `run-feed` | Confirm one selected source fetch and accept a durable import job using the saved RSS status/batch size, source category and enclosure images. Works for one-time and recurring sources. |
+| `list-jobs`, `get-job`, `list-import-logs` | Read progress, independent item outcomes, photo warnings, review counts, local events and legacy RSS log summaries. Reads never start work. |
+| `cancel-job` | Stop future items at a checkpoint; completed imports remain. This does not pause the source's future sync intervals. |
+| `discover-feed-operation`, `search-places-operation`, `get-place-details-operation`, `import-photo-operation`, `run-feed-operation` | Read the original durable external operation without redispatching its provider request or native writer. |
 
-Lists default to 20 and cap at 100. Inputs are closed and typed; numeric strings cannot substitute for JSON integer IDs. `get-schema.source_type` identifies the intended native source; both supported source families use the same admitted directory mappings.
+Lists default to 20 (mapping destinations default to 100) and cap at 100. IDs must use the declared JSON type: directory/term/attachment IDs are integers; feed/job/snapshot/candidate/operation IDs are strings. Inputs reject undeclared properties, including history-clearing flags.
 
 ## Preview and execute
 
-1. Read schema for a real directory ID and list existing term/attachment references using native Directorist tools.
-2. Call a mutation with `dry_run: true`.
-3. Inspect its per-item plan or external cost/limit description.
-4. Repeat the exact business input with `expected_version` from `changes.version`, the `confirm_token`, and a new `idempotency_key`.
-5. Retry an interrupted request using that same complete input and idempotency key. An unknown external outcome never authorizes a fresh dispatch.
+1. Read `get-schema` for the selected directory. Use native Directorist reference tools for compatible terms and attachments.
+2. Preview a mutation with `dry_run:true`; previewing is local and performs no provider requests or product writes.
+3. Review the field changes, per-item decisions, scheduling effects and disclosed network/cost bounds.
+4. Repeat the exact business input with `expected_version` from `changes.version`, `confirm_token` and a new `idempotency_key`.
+5. If interrupted, retry with the **same complete input and idempotency key**. Never replace an unknown operation with a fresh dispatch.
 
-A feed example (the source must be a supported feed you are permitted to use):
+### Saved settings
 
 ```json
 {
-  "name": "Reviewed restaurant feed",
+  "source_type": "places",
+  "changes": { "default_status": "draft", "max_results": 10 },
+  "dry_run": true
+}
+```
+
+Google settings support `default_status` (`draft`, `pending`, `publish`), `max_results` (1–20), write-only `api_key` (replacement), and `remove_key:true`. Replacement and removal cannot be combined. The key uses the same encrypted native store. Reads, previews, history and retry records never return or persist its plaintext. Credentials are accepted only as bounded write-only local mutation inputs; they remain forbidden in output/read/preview schemas and external-operation payloads.
+
+RSS settings support `default_status` (`pending`, `publish`) and `batch_size` (1–100). Omitted settings are preserved. These changes are visible in the corresponding native UI tab. Omitted candidate-import status uses the selected source's saved default; pass an explicit `status` to override within native policy.
+
+### Saved Google field mappings
+
+```json
+{
+  "directory_id": 3,
+  "mapping": [
+    { "source": "editorial_summary", "destination": "skip" },
+    { "source": "plus_code", "destination": "field:description" }
+  ],
+  "dry_run": true
+}
+```
+
+Discover real destination IDs with `get-field-mapping`; do not assume the example field key exists. It returns all Google source rows with each row's compatible destinations, total and `destinations_has_more`. `page`/`per_page` paginate each row's destination choices. Selected changes preserve omitted source rows; a destination may be assigned only once. `reset:true` restores native defaults for that directory, without affecting other directories or history.
+
+Google imports use saved mappings by default. `use_saved_mapping:false` selects the six-field generic mapping path; an explicit generic `mapping` also selects that path unless `use_saved_mapping:true` is supplied. Generic source fields are `title`, `description`, `address`, `phone`, `email`, and `website`. Saved Google mappings support the native UI's richer sources, including place ID, coordinates, Google Maps URL, ratings, review count, business/place types, price values, Plus Code and service-area flag. Destination writes still pass native listing/field policy; unsupported third-party fields are not written as arbitrary metadata.
+
+### Google import
+
+1. `search-places` with a keyword and either `location` or both `latitude` and `longitude`.
+2. Review `get-staged-candidates`. Optionally call `get-place-details` for each selected business and use its returned snapshot ID.
+3. Preview/confirm `import-candidates` using explicit candidate IDs and unique `client_ref` values.
+
+```json
+{
+  "directory_id": 3,
+  "snapshot_id": "snapshot-returned-by-details",
+  "items": [ { "candidate_id": "candidate-id", "client_ref": "restaurant-001" } ],
+  "use_saved_mapping": true,
+  "import_reviews": true,
+  "import_photos": true,
+  "duplicate_mode": "find_new_only",
+  "status": "draft",
+  "dry_run": true
+}
+```
+
+`import_reviews` imports the already staged review sample using native deduplication and preserves Google's aggregate rating. Opening hours use the same local native conversion as the UI. `import_photos` downloads the first staged photo before the listing transaction; existing listing photos are retained. Optional photo failures appear as per-item `media_warning` values and do not discard an otherwise valid business. Alternatively, call `import-photo` separately and supply its returned ID in an item's `attachment_ids`.
+
+Search results omit detail-only data until `get-place-details` is executed. Neither listing commits nor history reads implicitly fetch details. Each detail request is separately previewed and potentially billable. Snapshots and Google continuation handles expire for new selection after 15 minutes. Accepted jobs retain their reviewed plans for up to 24 hours, with fresh policy, authority and lifecycle checks before every listing write. Continuations repeat the original query/directory/coordinates/radius/limit, are bound to the initiating user and settings version, and allow at most three pages. Search radius is 0–50,000 metres; page size is 1–20, constrained by saved settings.
+
+`find_new_only` skips duplicates; `update_existing` updates matched listings. Matching uses the native source/legacy source URL or Google Place ID **within the target directory**, never title alone. Ambiguous matches require manual resolution. Omitted owner, entitlements, unrelated fields/taxonomies and existing images remain intact.
+
+### RSS source and scheduled sync
+
+```json
+{
+  "name": "Restaurant feed",
   "source_url": "https://publisher.example/feed.xml",
   "directory_id": 3,
+  "mode": "sync",
+  "interval": "hourly",
+  "status": "active",
   "dry_run": true
 }
 ```
 
-Discovery uses `source_url`, `source_approved: true`, `directory_id`, optional `sample_size` (1–20; default 5), and optional `feed_id`. An attached feed's source must match the selected configuration.
+Recurring sync requires `mode:sync`, active status and an hourly/twicedaily/daily interval. The confirmation binds the administrator who enables it. Each source owns one recurring `dli_mcp_sync_feed` event. Its worker fetches only that source, stages up to the saved RSS batch size, and queues a durable listing job. The legacy global runner excludes managed sources, preventing double imports. Source runs preserve native extracted price, formatted description and past publication date, and can import enclosure images.
 
-Places search requires `directory_id`, `keyword`, and either `location` or both `latitude` and `longitude`. Radius is 0–50,000 metres. `result_limit` is 1–20 and is also constrained by the native maximum. A continuation must repeat the original query, directory, coordinates, radius and limit and supply its opaque handle. It belongs to its initiating user, expires in 15 minutes, can be consumed by only one durable operation, and is bounded to three pages. Each page is a separate previewed external operation and counts against the quota.
+Use `update-feed` with `changes:{"status":"paused"}` to stop future intervals, and with active status to resume. UI pause/interval/delete operations also update the managed event. `get-feed.next_run` and `last_job_id` identify scheduling and progress. `run-feed` runs exactly one saved source immediately through the same staged path; it never invokes the global scheduler. An unfinished/unknown job blocks another run of that source.
 
-An import example:
+A serviced **WP-Cron runner** is required for unattended sync and job progress. `get-schema.cron_disabled` reports `DISABLE_WP_CRON`; an external cron runner can service such a site. Activation restores managed events; deactivation unschedules managed sync/worker events. Workers recheck the initiating user's capabilities, plugin lifecycle, directory policy and item state. Future directory/consent/entitlement restrictions are reported as validation or permission failures rather than bypassed.
 
-```json
-{
-  "snapshot_id": "opaque-snapshot-id",
-  "directory_id": 3,
-  "items": [
-    { "candidate_id": "opaque-candidate-id", "client_ref": "reviewed-business-1" }
-  ],
-  "status": "draft",
-  "duplicate_mode": "find_new_only",
-  "mapping": [
-    { "source": "title", "target": "title" },
-    { "source": "description", "target": "description" }
-  ],
-  "dry_run": true
-}
-```
+## History and durability
 
-Supported source fields are `title`, `description`, `address`, `phone`, `email`, and `website`. Targets are discovered from active native directory definitions. Optional `category_id` must reference an existing compatible term. Optional explicit native `consents` must satisfy the current listing policy. `find_new_only` and `update_existing` are a single mutually exclusive `duplicate_mode` enum. Matching uses the native source URL/legacy source URL or Google place ID within the target directory, never title alone. Ambiguous duplicates fail for manual resolution.
+`list-import-history` accepts `source_type:places|feed`, `page`, `per_page`, optional Unix `after`/`before` and an RSS `feed_id`. Google rows include time, actor ID, keyword/name, location, listing status, counts and MCP job references. Error text/provider bodies are summarized rather than exposed. Existing legacy UI records are included. Completed MCP jobs append to the same native stores, preserving the UI's native retention limits (Google 50 rows, RSS 500 rows).
 
-Creation defaults to draft. Native policy decides whether pending/publish are permitted and the effective status of updates. Preview shows that status. Required or unsupported fields and entitlement restrictions produce independent validation outcomes without guessing extension metadata. Omitted custom fields, owner, financial values, unrelated taxonomy assignments and existing images remain intact.
+There is no history-clear, history-delete or log-reset MCP tool. Mapping reset only resets mappings. Settings updates cannot write history options.
 
-## Durable execution and recovery
+Private `{prefix}dli_mcp_records` records retain snapshots, continuations, jobs, photo checkpoints, selected-source runs and safe events. Activation/admin upgrade paths initialize storage; reads and previews never migrate it. Include this table in backups/retention procedures. An item and its terminal listing result commit together under Directorist's shared write lock. Killed listing transactions roll back and resume their original checkpoint. Cancellation retains completed items and prevents subsequent item starts after its committed stop checkpoint.
 
-`admin_init` and plugin activation perform the versioned InnoDB storage upgrade. Discovery and preview never migrate storage. If storage is unavailable, writes fail with a prerequisite message.
+Photos are separate durable intents. Interrupted image requests are not automatically repeated. Imported attachments are retained in the WordPress media library even if a later listing is rejected or cancelled; they can be reused. No remote request or image filesystem processing occurs inside a listing commit. Local photo metadata creation is part of the photo operation, not listing creation.
 
-`{prefix}dli_mcp_records` contains private snapshots, continuation handles, jobs and safe events. Jobs persist the accepted per-item plan and schema/lifecycle fingerprint. Snapshot data expires for use after 15 minutes. Records are durable and are not automatically deleted by cache eviction; expiry rejects access rather than silently refreshing. Administrators should include this table in the site's data retention and backup procedures. Core's private external-operation/idempotency records retain provider evidence and deduplication references under its own contract.
+Outcomes include created, updated, skipped-duplicate, validation-failed, permission-blocked, cancelled and outcome-unknown. Terminal workers do not continually reschedule. Trusted local recovery remains available through `DLI_MCP_Service::work($job_id)` and `DLI_MCP_Service::reconcile_item($job_id,$client_ref)`. Reconciliation proves durable listing markers; it does not insert another listing. External-operation readers similarly never rerun a provider or native writer.
 
-Confirmed job acceptance schedules only the selected job's worker. Before a native write the worker reserves a recovery wake-up, persists a running checkpoint, rechecks the initiating user's current capabilities and the active extension, checks freshness and compares the current independent plan. The native listing and its terminal outcome/event commit in one transaction under Directorist's shared database lock. Native feed CRUD/import and Google AJAX entry points participate in this lock. A killed process rolls back its uncommitted listing; recovery resumes the original checkpoint. Terminal workers do not continually reschedule themselves. WP-Cron must be serviced for unattended progress.
+## Network and bounds
 
-Outcomes are `created`, `updated`, `skipped-duplicate`, `validation-failed`, `permission-blocked`, `cancelled`, and `outcome-unknown`, plus queued/running progress. Cancellation cannot undo completed listings or an external request. An item already inside its guarded transaction finishes before a cancellation can commit; no subsequent item starts after that committed stop checkpoint.
+Public source requests use verified DNS, cURL address pinning, TLS verification, disabled proxies, validated redirect targets, a ten-second timeout and a one MiB text-response ceiling. Public HTTP(S) ports 80/443 only; credentials/proxy queries, private/reserved addresses, external XML declarations and arbitrary page scraping are excluded. Google authenticated requests use fixed endpoints and never follow redirects with the key. Photo downloads admit JPEG, PNG, GIF or WebP up to 10 MiB and 40 million pixels; provider-returned CDN URLs are constrained to public HTTPS Googleusercontent hosts and never returned to callers.
 
-There is no retry-everything tool. A trusted local administrator may invoke:
-
-```php
-DLI_MCP_Service::work( $existing_job_id );
-DLI_MCP_Service::reconcile_item( $existing_job_id, $client_ref );
-```
-
-Reconciliation proves a matching durable item marker and native source/directory identity. It never inserts or updates a listing. Missing/inconsistent evidence leaves the outcome unknown. If a staged result persisted but its external operation's final bookkeeping was interrupted, core's local `External_Operations::complete( $operation_id, $native_result )` verifies that existing result; it does not call the native writer. Google queries with no retained result cannot be reconciled at the provider and remain unknown without automatic redispatch.
-
-## Network, credentials and bounds
-
-Previews are local, including URL syntax checks. Confirmed dispatch resolves public DNS, validates all returned addresses, pins cURL to a verified address, disables proxies/automatic redirects, verifies TLS certificates and validates every redirect target. Only public HTTP(S) on ports 80/443 is admitted; embedded credentials, credential/proxy query parameters, private/link-local/metadata/reserved addresses, external XML declarations and oversized payloads fail safely. Each fetch has a 10-second timeout, a one MiB response ceiling and at most three redirects. HTML is used only to locate a declared RSS/Atom alternate link; arbitrary page scraping is excluded.
-
-Places uses the server-selected native Google endpoint and the existing encrypted credential store. It performs no implicit geocode, detail, image or retry calls. Every search/continuation intent, including failed and interrupted attempts, counts towards 100 requests/hour/user together with native UI runs. Native UI quota checks use the same serialized combined count. Credentials, provider continuation strings, signed image URLs and provider error bodies are never returned. Safe log reasons identify transport, source, quota and validation failures.
-
-Media is limited to existing authorized attachment references, optionally supplied as each item's `attachment_ids`. Remote photo imports are excluded from this implementation. Consequently jobs create no staged files or unattached temporary assets requiring cleanup, and listing commits perform no filesystem or remote fetch work.
-
-Automatic feed activation through MCP remains blocked with `scheduler_prerequisite`: native scheduled workers still combine remote fetching and listing writes and do not provide the required staging/checkpoint bounds. Paused feed configuration remains manageable. MCP never runs the global scheduler or every due feed. No native UI redesign is included.
+Google searches, details and photo lookup intents share the existing native UI quota of 100 intents/hour/user, including failed and interrupted attempts. Provider data and continuations are not credential-management interfaces. There is no implicit geocode, unbounded pagination or retry-everything tool.
 
 ## Verification
 
-The verification suites are local development files under ignored `/tests/` and are not committed or distributed with the plugin. With those local fixtures available, run only against a disposable `codex_import_*` database with Directorist and Listing Importer active:
+The local fixture suite is excluded from Git under `/tests/` and requires a disposable `codex_import_*` database and blocks running against the working site's database:
+
+```sh
+wp --path=/path/to/disposable/site eval-file wp-content/plugins/directorist-listing-import/tests/mcp-ui-parity.php
+```
+
+It exercises registration, encrypted settings, write-only schema boundaries, stale confirmations, saved mappings/reset, real UI history reads, no history-clearing tools, detailed Google imports/photos/reviews, RSS source runs/images/price, scheduled sync, duplicate prevention, pause, revoked authority and shared history. Provider responses are fixtures; live Google credentials/billing and production DNS/transport require environment-specific validation.
+
+Additional local development suites, where available:
 
 ```sh
 wp --path=/path/to/disposable/site eval-file wp-content/plugins/directorist-listing-import/tests/mcp-integration.php
 python3 wp-content/plugins/directorist-listing-import/tests/mcp-concurrency.py /path/to/disposable/site
 ```
-
-The integration suite covers registration of all 16 tools, pure previews/reads, defaults, source rejection/redaction, confirmed discovery and replay, selected candidates, duplicates, policy rejection, native field/ownership/media preservation, stale confirmations, interruption/recovery, cancellation, revoked authority, deactivation, lifecycle changes, pagination, encrypted Places fixtures, user/query-bound continuation limits, combined quotas, both operation readers, completion proofs, redirects to private IPs, oversized responses and indeterminate timeouts.
-
-The process suite exits a worker after native insertion inside its transaction, verifies rollback and the durable checkpoint, starts two simultaneous recovery workers, and proves exactly one committed listing and stable worker reentry.
-
-Provider responses in these tests are fixtures. A real public HTTPS fetch also verified DNS pinning and TLS on the local cURL transport. Native feed/log and Google import/history pages plus the native listing form/access guard received server-render smoke checks. Live Google credentials/billing, production DNS/transport behavior, browser interaction/published-page rendering, and third-party extension combinations still require release-environment checks. Do not infer live provider certification from fixture results.

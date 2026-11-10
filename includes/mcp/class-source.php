@@ -43,8 +43,15 @@ final class DLI_MCP_Source {
     /** Pin each fetch to verified DNS answers, including each redirect target. */
     public static function request( string $url, array $args = [] ): array {
         DLI_MCP_Service::check( function_exists( 'curl_init' ), 'The safe import transport requires cURL.', 'prerequisite_missing' );
+        $no_redirect = ! empty( $args['_no_redirect'] );
+        $max_bytes = $args['_max_bytes'] ?? self::MAX_BYTES;
+        $photo = ! empty( $args['_trusted_photo'] );
+        unset( $args['_no_redirect'], $args['_max_bytes'], $args['_trusted_photo'] );
         for ( $redirect = 0; $redirect <= 3; ++$redirect ) {
-            $url = self::url( $url );
+            if ( $photo ) {
+                $parts = wp_parse_url( $url );
+                DLI_MCP_Service::check( 'https' === ( $parts['scheme'] ?? '' ) && empty( $parts['user'] ) && empty( $parts['pass'] ) && empty( $parts['port'] ) && preg_match( '/(^|\.)googleusercontent\.com$/i', $parts['host'] ?? '' ), 'The provider photo URL is unsupported.', 'unsafe_source' );
+            } else { $url = self::url( $url ); }
             $host = wp_parse_url( $url, PHP_URL_HOST );
             $host = trim( $host, '[]' );
             $ips = filter_var( $host, FILTER_VALIDATE_IP ) ? [ $host ] : ( gethostbynamel( $host ) ?: [] );
@@ -63,12 +70,13 @@ final class DLI_MCP_Source {
             };
             add_action( 'http_api_curl', $pin );
             try {
-                $response = wp_safe_remote_request( $url, array_merge( $args, [ 'timeout' => 10, 'redirection' => 0, 'sslverify' => true, 'limit_response_size' => self::MAX_BYTES + 1, 'reject_unsafe_urls' => true, 'cookies' => [] ] ) );
+                $response = wp_safe_remote_request( $url, array_merge( $args, [ 'timeout' => 10, 'redirection' => 0, 'sslverify' => true, 'limit_response_size' => $max_bytes + 1, 'reject_unsafe_urls' => true, 'cookies' => [] ] ) );
             } finally { remove_action( 'http_api_curl', $pin ); }
             if ( is_wp_error( $response ) ) { return [ 'state' => 'unknown', 'reason' => 'network_outcome_unknown' ]; }
             if ( ! $pinned ) { return [ 'state' => 'unknown', 'reason' => 'transport_not_verified' ]; }
             $code = (int) wp_remote_retrieve_response_code( $response );
             if ( $code >= 300 && $code < 400 ) {
+                DLI_MCP_Service::check( ! $no_redirect, 'Provider redirects are unsupported.', 'provider_redirect' );
                 DLI_MCP_Service::check( 'GET' === ( $args['method'] ?? 'GET' ), 'Provider redirects are unsupported.', 'provider_redirect' );
                 $location = wp_remote_retrieve_header( $response, 'location' );
                 DLI_MCP_Service::check( is_string( $location ) && $location && $redirect < 3, 'The source exceeded its redirect limit.', 'source_redirect' );
@@ -76,7 +84,7 @@ final class DLI_MCP_Source {
                 continue;
             }
             $body = wp_remote_retrieve_body( $response );
-            DLI_MCP_Service::check( strlen( $body ) <= self::MAX_BYTES, 'The source exceeds the one MiB payload limit.', 'source_too_large' );
+            DLI_MCP_Service::check( strlen( $body ) <= $max_bytes, 'The source exceeds the one MiB payload limit.', 'source_too_large' );
             if ( $code < 200 || $code >= 300 ) { return [ 'state' => 'failed', 'reason' => 429 === $code ? 'provider_quota' : 'source_http_error' ]; }
             return [ 'state' => 'settled', 'body' => $body, 'url' => $url ];
         }
@@ -111,7 +119,11 @@ final class DLI_MCP_Source {
         $candidates = [];
         foreach ( $feed->get_items( 0, $args['sample_size'] ?? 5 ) as $entry ) {
             $mapped = Directorist_Listing_Import_Feed_Discovery::map_entry( $entry );
-            $candidates[] = DLI_MCP_Listing_Writer::candidate( 'feed', $mapped['permalink'], $mapped );
+            $candidate = DLI_MCP_Listing_Writer::candidate( 'feed', $mapped['permalink'], $mapped );
+            $enclosure = $entry->get_enclosure();
+            $candidate['feed_details'] = ( new Directorist_Listing_Import_Importer() )->staged_entry_data( $entry );
+            $candidate['photo_url'] = $enclosure ? (string) $enclosure->get_link() : '';
+            $candidates[] = $candidate;
         }
         return [ 'state' => 'settled', 'candidates' => $candidates, 'source' => self::descriptor( $response['url'] ), 'quality' => Directorist_Listing_Import_Feed_Discovery::quality_score( array_column( $candidates, 'fields' ) )['score'], 'next' => '' ];
     }
@@ -123,7 +135,7 @@ final class DLI_MCP_Source {
         $body = [ 'textQuery' => trim( $args['keyword'] . ' ' . ( $args['location'] ?? '' ) ), 'pageSize' => min( ( new \DLIG\Settings() )->get_max_results(), $args['result_limit'] ?? 20 ) ];
         if ( isset( $args['latitude'], $args['longitude'] ) && ( $args['radius'] ?? 0 ) > 0 ) { $body['locationBias'] = [ 'circle' => [ 'center' => [ 'latitude' => $args['latitude'], 'longitude' => $args['longitude'] ], 'radius' => $args['radius'] ] ]; }
         if ( $page_token ) { $body['pageToken'] = $page_token; }
-        $response = self::request( \DLIG\Google_Places_Client::SEARCH_ENDPOINT, [ 'method' => 'POST', 'headers' => [ 'Content-Type' => 'application/json', 'X-Goog-Api-Key' => $key, 'X-Goog-FieldMask' => 'places.id,places.displayName,places.formattedAddress,places.location,places.nationalPhoneNumber,places.websiteUri,places.editorialSummary,nextPageToken' ], 'body' => wp_json_encode( $body ) ] );
+        $response = self::request( \DLIG\Google_Places_Client::SEARCH_ENDPOINT, [ 'method' => 'POST', 'headers' => [ 'Content-Type' => 'application/json', 'X-Goog-Api-Key' => $key, 'X-Goog-FieldMask' => 'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.editorialSummary,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryType,places.primaryTypeDisplayName,places.types,places.businessStatus,places.priceLevel,places.priceRange,places.plusCode,places.pureServiceAreaBusiness,nextPageToken' ], 'body' => wp_json_encode( $body ), '_no_redirect' => true ] );
         if ( 'settled' !== $response['state'] ) { return $response; }
         $data = json_decode( $response['body'], true );
         DLI_MCP_Service::check( is_array( $data ) && ! isset( $data['error'] ), 'The provider returned an invalid result.', 'provider_response_invalid' );
@@ -131,7 +143,9 @@ final class DLI_MCP_Source {
         foreach ( array_slice( $data['places'] ?? [], 0, $body['pageSize'] ) as $place ) {
             $place = $client->normalise_detail( $place );
             $fields = [ 'title' => $place['name'], 'description' => $place['editorial_summary'], 'address' => $place['formatted_address'], 'phone' => $place['phone'], 'website' => $place['website'], 'email' => '' ];
-            $candidates[] = DLI_MCP_Listing_Writer::candidate( 'places', $place['place_id'], $fields );
+            $candidate = DLI_MCP_Listing_Writer::candidate( 'places', $place['place_id'], $fields );
+            $candidate['google'] = DLI_MCP_Google::sanitize( $place );
+            $candidates[] = $candidate;
         }
         return [ 'state' => 'settled', 'source' => 'Google Places', 'candidates' => $candidates, 'quality' => Directorist_Listing_Import_Feed_Discovery::quality_score( array_column( $candidates, 'fields' ) )['score'], 'next' => is_string( $data['nextPageToken'] ?? null ) ? substr( $data['nextPageToken'], 0, 4096 ) : '' ];
     }

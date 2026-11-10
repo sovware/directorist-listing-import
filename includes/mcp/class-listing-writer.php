@@ -63,15 +63,18 @@ final class DLI_MCP_Listing_Writer {
         $existing = self::duplicate( $candidate, $directory );
         if ( $existing ) { DLI_MCP_Service::check( current_user_can( 'edit_post', $existing ), 'The matching listing is not editable.', 'permission_blocked' ); }
         $decision = $existing ? ( 'update_existing' === ( $args['duplicate_mode'] ?? 'find_new_only' ) ? 'update' : 'skip' ) : 'create';
-        $mappings = self::mappings( $directory ); $fields = []; $mapping = $args['mapping'] ?? [];
-        if ( ! $mapping ) {
+        $mappings = self::mappings( $directory ); $fields = []; $mapping = $args['mapping'] ?? []; $extras = [];
+        $saved = 'places' === $candidate['source'] && ! empty( $candidate['google'] ) && ( $args['use_saved_mapping'] ?? ! isset( $args['mapping'] ) );
+        if ( $saved ) { $translated = DLI_MCP_Google::mapped_fields( $candidate, $directory ); $fields = $translated['fields']; $mapping = $translated['mapping']; $extras = $translated['extras']; }
+        if ( ! $saved && ! $mapping ) {
             foreach ( self::SOURCES as $source ) { if ( isset( $mappings[ $source ] ) ) { $mapping[] = [ 'source' => $source, 'target' => $source ]; } }
         }
         $seen = [];
-        foreach ( $mapping as $map ) {
+        foreach ( $saved ? [] : $mapping as $map ) {
             DLI_MCP_Service::check( in_array( $map['source'], self::SOURCES, true ) && isset( $mappings[ $map['target'] ] ) && ! isset( $seen[ $map['target'] ] ), 'A mapping is unsupported, inactive or repeated.', 'invalid_mapping' );
             $seen[ $map['target'] ] = true;
             $value = $candidate['fields'][ $map['source'] ];
+            if ( 'feed' === $candidate['source'] && 'description' === $map['source'] && 'description' === $mappings[ $map['target'] ]['widget'] && isset( $candidate['feed_details']['description_html'] ) ) { $value = $candidate['feed_details']['description_html']; }
             if ( '' === $value && $existing ) { continue; }
             $type = $mappings[ $map['target'] ]['schema']['type'];
             if ( in_array( $type, [ 'number', 'integer' ], true ) ) {
@@ -83,7 +86,14 @@ final class DLI_MCP_Listing_Writer {
             }
             $fields[ $map['target'] ] = $value;
         }
-        if ( ! empty( $args['category_id'] ) ) { $fields['categories'] = $existing ? [ 'add' => [ $args['category_id'] ] ] : [ $args['category_id'] ]; }
+        if ( 'feed' === $candidate['source'] && ! isset( $args['mapping'] ) && ! empty( $candidate['feed_details']['price'] ) ) { $extras[] = [ 'destination' => 'special:pricing_amount', 'value' => $candidate['feed_details']['price'] ]; }
+        if ( ! empty( $args['category_id'] ) ) { $fields['categories'] = array_values( array_unique( array_merge( $fields['categories'] ?? [], [ $args['category_id'] ] ) ) ); }
+        if ( ! empty( $args['location_id'] ) ) {
+            $term = \Directorist\MCP\Tool_Providers\Taxonomies\Term_Validator::term( ATBDP_LOCATION, $args['location_id'] );
+            DLI_MCP_Service::check( in_array( $directory, \Directorist\MCP\Tool_Providers\Taxonomies\Term_Validator::scope( $term->term_id ), true ), 'The selected location belongs to another directory.' );
+            $fields['locations'] = array_values( array_unique( array_merge( $fields['locations'] ?? [], [ $args['location_id'] ] ) ) );
+        }
+        if ( $existing ) { foreach ( [ 'categories', 'locations', 'tags' ] as $key ) { if ( isset( $fields[ $key ] ) ) { $fields[ $key ] = [ 'add' => $fields[ $key ] ]; } } }
         if ( ! empty( $item['attachment_ids'] ) ) {
             DLI_MCP_Service::check( isset( Listing_Schema::definitions( $directory )['images'] ), 'This directory does not admit images.', 'invalid_mapping' );
             foreach ( $item['attachment_ids'] as $attachment ) { \Directorist\MCP\Runtime\Access_Control::attachment( $attachment, true ); }
@@ -96,7 +106,7 @@ final class DLI_MCP_Listing_Writer {
         $plan = Write_Callbacks::prepare( $existing ? 'update-listing' : 'create-listing', $native );
         $status = $plan['preview']['effective_status'];
         if ( $existing && 'publish' === $status ) { Listing_Policy::policy( get_post( $existing ), $directory, 'publish' ); }
-        return [ 'decision' => $decision, 'existing_id' => $existing, 'native' => $native, 'native_state' => $plan['state'], 'fields' => $fields, 'effective_status' => $status, 'mapping' => $mapping, 'existing_version' => $existing ? Listing_Schema::version( get_post( $existing ) ) : '' ];
+        return [ 'decision' => $decision, 'existing_id' => $existing, 'native' => $native, 'native_state' => $plan['state'], 'fields' => $fields, 'effective_status' => $status, 'mapping' => $mapping, 'existing_version' => $existing ? Listing_Schema::version( get_post( $existing ) ) : '', 'google_extras' => $extras, 'google_details' => $candidate['google'] ?? [], 'import_reviews' => ! empty( $args['import_reviews'] ) ];
     }
 
     /** Called under the site lock and the item/checkpoint transaction. No HTTP or file work. */
@@ -131,8 +141,22 @@ final class DLI_MCP_Listing_Writer {
         $id = (int) ( $result['listing_id'] ?? 0 );
         DLI_MCP_Service::check( $id > 0, 'The native listing result was not verified.', 'outcome_unknown' );
         DLI_MCP_Service::check( get_post_status( $id ) === $plan['effective_status'], 'Native status changed after validation. Preview the effective policy again.', 'candidate_changed' );
-        if ( 'places' === $candidate['source'] ) { update_post_meta( $id, '_google_place_id', $candidate['identity'] ); }
+        if ( 'places' === $candidate['source'] ) {
+            update_post_meta( $id, '_google_place_id', $candidate['identity'] );
+            add_filter( 'pre_http_request', $deny_http, PHP_INT_MAX );
+            try {
+                DLI_MCP_Google::commit_extras( $id, $plan['native']['directory_id'], $plan['google_extras'] ?? [] );
+                $importer = new \DLIG\Importer( new \DLIG\Google_Places_Client(), new \DLIG\Review_Mapper(), new \DLIG\Field_Mapping() );
+                $reviews = $importer->apply_staged_details( $id, $plan['google_details'] ?? [], ! empty( $plan['import_reviews'] ) );
+                update_post_meta( $id, '_dli_mcp_reviews_created', $reviews );
+            } finally { remove_filter( 'pre_http_request', $deny_http, PHP_INT_MAX ); }
+        }
         else {
+            DLI_MCP_Google::commit_extras( $id, $plan['native']['directory_id'], $plan['google_extras'] ?? [] );
+            if ( 'create' === $plan['decision'] && ! empty( $candidate['feed_details']['post_date'] ) && strtotime( $candidate['feed_details']['post_date'] ) <= time() ) {
+                $dated = wp_update_post( [ 'ID' => $id, 'post_date' => $candidate['feed_details']['post_date'], 'edit_date' => true ], true );
+                DLI_MCP_Service::check( ! is_wp_error( $dated ), 'Could not preserve the source date.', 'native_write_failed' );
+            }
             foreach ( [ DLI_META_SOURCE_URL, DLI_LEGACY_META_SOURCE_URL ] as $key ) { update_post_meta( $id, $key, $candidate['identity'] ); }
             update_post_meta( $id, DLI_META_SOURCE_NAME, wp_parse_url( $candidate['identity'], PHP_URL_HOST ) ?: '' );
         }

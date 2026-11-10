@@ -109,6 +109,7 @@ class Directorist_Listing_Import_Feed_Manager {
             }
             if ( isset( $args['last_run'] ) ) $feed['last_run'] = absint( $args['last_run'] );
 
+            foreach ( [ 'mcp_actor', 'mcp_last_job' ] as $key ) { if ( array_key_exists( $key, $args ) ) { $feed[ $key ] = $args[ $key ]; } }
             $found = true;
             break;
         }
@@ -116,6 +117,7 @@ class Directorist_Listing_Import_Feed_Manager {
 
         if ( $found ) {
             update_option( DLI_OPTION_FEEDS, $feeds );
+            if ( class_exists( 'DLI_MCP_Sync' ) && array_intersect( array_keys( $args ), [ 'status', 'interval', 'sync_mode' ] ) ) { DLI_MCP_Sync::reschedule( $id ); }
         }
 
         return $found;
@@ -136,6 +138,7 @@ class Directorist_Listing_Import_Feed_Manager {
         if ( count( $feeds ) === $initial ) return false;
 
         update_option( DLI_OPTION_FEEDS, $feeds );
+        wp_clear_scheduled_hook( 'dli_mcp_sync_feed', [ $id ] );
         return true;
     }
 
@@ -153,6 +156,7 @@ class Directorist_Listing_Import_Feed_Manager {
 
         $due = [];
         foreach ( self::get_feeds() as $feed ) {
+            if ( ! empty( $feed['mcp_actor'] ) ) continue; // Dedicated actor-bound staged worker owns these feeds.
             if ( ( $feed['status'] ?? '' ) !== 'active' ) continue;
             if ( ( $feed['sync_mode'] ?? 'sync' ) === 'one_time' || ( $feed['interval'] ?? '' ) === 'manual' ) continue;
 
