@@ -1,6 +1,6 @@
 # Listing Import MCP integration
 
-Listing Importer 1.3.0 contributes extension API 1 tools under owner `listing-import`, contract `1.2.0`, using Directorist's server, permissions, confirmations and durable operation records.
+Listing Importer 1.1.1 contributes extension API 1 tools under owner `listing-import`, contract `1.2.0`, using Directorist's server, permissions, confirmations and durable operation records.
 
 ## Core compatibility
 
