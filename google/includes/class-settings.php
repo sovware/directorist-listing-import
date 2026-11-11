@@ -55,6 +55,15 @@ class Settings {
 		return max( 1, min( 20, intval( get_option( self::OPT_MAX_RESULTS, 20 ) ) ) );
 	}
 
+	/** Store a replacement credential without exposing it in a read or preview. */
+	public function save_api_key( string $key ): void {
+		$encrypted = '' === $key ? '' : $this->encrypt( $key );
+		if ( '' !== $key && '' === $encrypted ) {
+			throw new \RuntimeException( 'Could not encrypt the Google Places credential.' );
+		}
+		update_option( self::OPT_API_KEY, $encrypted, false );
+	}
+
 	// ── WP Settings API registration (used for REST / options sanitization) ──
 
 	public function register_settings(): void {
@@ -82,6 +91,7 @@ class Settings {
 		}
 
 		check_admin_referer( 'dlig_save_google_settings_action', 'dgbi_settings_nonce' );
+        \DLI_MCP_Compatibility::native_lock();
 
 		// API key: only update if the submitted value is not the placeholder mask.
 		if ( isset( $_POST['dgbi_api_key'] ) ) {
@@ -119,6 +129,7 @@ class Settings {
 		}
 
 		check_admin_referer( 'dlig_remove_google_api_key_action', 'dgbi_remove_nonce' );
+        \DLI_MCP_Compatibility::native_lock();
 
 		update_option( self::OPT_API_KEY, '', 'no' );
 

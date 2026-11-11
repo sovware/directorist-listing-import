@@ -267,6 +267,7 @@ class Importer {
 	 * @return array { imported, updated, skipped, errors, reviews, reviews_created, descriptions, place_name }
 	 */
 	public function import_single_place( array $place, array $args ): array {
+		\DLI_MCP_Compatibility::native_lock();
 		$result = [
 			'imported'        => 0,
 			'updated'         => 0,
@@ -556,6 +557,18 @@ class Importer {
 	 *
 	 * @return string[] Source keys successfully applied by the mapping layer.
 	 */
+	/** Apply only pre-fetched local detail data; the MCP worker never calls the provider. */
+	public function apply_staged_details( int $post_id, array $details, bool $reviews ): int {
+		if ( ! empty( $details['editorial_summary'] ) ) { update_post_meta( $post_id, '_google_description', sanitize_textarea_field( $details['editorial_summary'] ) ); }
+		if ( ! empty( $details['opening_hours'] ) ) {
+			update_post_meta( $post_id, '_opening_hours', wp_json_encode( $details['opening_hours'] ) );
+			$this->map_opening_hours( $post_id, $details['opening_hours'] );
+		}
+		$count = $reviews && ! empty( $details['reviews'] ) ? $this->import_reviews( $post_id, $details['reviews'] ) : 0;
+		if ( $count ) { $this->restore_google_rating( $post_id, $details ); }
+		return $count;
+	}
+
 	private function apply_google_source_data( int $post_id, array $source_data, int $directory_id ): array {
 		$applied = $this->field_mapping->apply_mapped_data( $post_id, $source_data, $directory_id );
 

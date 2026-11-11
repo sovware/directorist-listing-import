@@ -286,6 +286,24 @@ class Field_Mapping {
 		return $this->enforce_unique_destinations( $effective_map );
 	}
 
+	/** Shared typed mapping preparation for programmatic import adapters. */
+	public function prepare_import_value( int $directory_id, string $field_key, $value ) {
+		$field = $this->find_form_field_by_key( $directory_id, $field_key );
+		return $field ? $this->prepare_value_for_field( $field, $value ) : null;
+	}
+
+	/** Persist an already validated map, or restore the same defaults as the UI. */
+	public function save_mapping( int $directory_id, array $mapping, bool $reset = false ): void {
+		$maps = get_option( self::OPT_FIELD_MAP, [] );
+		$maps = is_array( $maps ) ? $maps : [];
+		if ( $reset ) {
+			unset( $maps[ (string) $directory_id ] );
+		} else {
+			$maps[ (string) $directory_id ] = $this->sanitize_mapping_payload( $directory_id, $mapping );
+		}
+		update_option( self::OPT_FIELD_MAP, $maps, false );
+	}
+
 	/**
 	 * Save or reset field mappings for one directory type.
 	 */
@@ -295,6 +313,7 @@ class Field_Mapping {
 		}
 
 		check_admin_referer( 'dlig_save_google_field_mapping_action', 'dgbi_field_mapping_nonce' );
+        \DLI_MCP_Compatibility::native_lock();
 
 		$directory_id = $this->resolve_directory_id( absint( $_POST['dgbi_mapping_directory'] ?? 0 ) );
 		$all_maps     = get_option( self::OPT_FIELD_MAP, [] );
@@ -662,6 +681,11 @@ class Field_Mapping {
 		}
 
 		return false;
+	}
+
+	/** Apply a destination already admitted by the MCP mapping plan. No remote work. */
+	public function apply_import_destination( int $post_id, int $directory_id, string $destination, $value ): bool {
+		return $this->apply_destination( $post_id, $directory_id, $destination, $value );
 	}
 
 	/**

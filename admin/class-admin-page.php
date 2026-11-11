@@ -261,6 +261,7 @@ class Directorist_Listing_Import_Admin_Page {
     public static function handle_save_settings(): void {
         if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
         check_admin_referer( 'dli_save_settings' );
+        \DLI_MCP_Compatibility::native_lock();
 
         $settings = [
             'default_status' => in_array( $_POST['default_status'] ?? '', [ 'pending', 'publish' ], true )
@@ -281,6 +282,7 @@ class Directorist_Listing_Import_Admin_Page {
     public static function handle_clear_logs(): void {
         if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
         check_admin_referer( 'dli_clear_logs' );
+        \DLI_MCP_Compatibility::native_lock();
 
         update_option( DLI_OPTION_LOGS, [] );
 

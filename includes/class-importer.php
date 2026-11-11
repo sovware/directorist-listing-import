@@ -46,7 +46,16 @@ class Directorist_Listing_Import_Importer {
      * @return array{ imported: int, skipped: int, errors: int }
      */
     public function run_feed( array $feed ): array {
+        \DLI_MCP_Compatibility::native_lock();
         $result = [ 'imported' => 0, 'skipped' => 0, 'errors' => 0 ];
+
+        // A due-feed array may have been read before another request acquired
+        // the shared lock and removed/edited this configuration.
+        if ( ! empty( $feed['id'] ) ) {
+            $current = Directorist_Listing_Import_Feed_Manager::get_feed( $feed['id'] );
+            if ( ! $current ) { return $result; }
+            $feed = $current;
+        }
 
         if ( empty( $feed['url'] ) ) {
             $this->log( $feed, $result, 'Feed URL is empty.' );
@@ -90,6 +99,11 @@ class Directorist_Listing_Import_Importer {
         $this->log( $feed, $result );
 
         return $result;
+    }
+
+    /** Reuse native feed extraction without creating a listing or fetching media. */
+    public function staged_entry_data( $item ): array {
+        return [ 'price' => $this->extract_price( $item ), 'post_date' => $item->get_date( 'Y-m-d H:i:s' ) ?: '', 'description_html' => wp_kses_post( substr( $item->get_description() ?? '', 0, 5000 ) ) ];
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
