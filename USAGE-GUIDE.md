@@ -1,5 +1,5 @@
 # Listing Importer — Usage Guide
-**Version 1.0.0** | Google Business and RSS/Feed Importer for Directorist
+**Version 1.1.1** | Google Business and RSS/Feed Importer for Directorist
 
 ---
 
@@ -346,7 +346,7 @@ The source may not be serving valid RSS/Atom to your server. For example, some s
 No. The admin screen prevents saving the same RSS URL twice. This keeps your feed list cleaner and avoids repeated skip-only import runs.
 
 **Does this work with Directorist custom fields?**
-v1.0 maps standard fields (title, description, price, address, image). Custom field mapping is on the roadmap for v1.1.
+Google Business supports per-directory field mapping from the **Field Mapping** tab. RSS/Feed imports map standard fields such as title, description, price, address and image. MCP imports can also map supported source fields to compatible active directory fields; see the [MCP guide](docs/mcp.md).
 
 **Can I pause a feed without deleting it?**
 Yes. Use **Pause** in the Saved Feeds table. Paused feeds stay saved but are skipped by scheduled imports until you click **Resume**.
@@ -406,4 +406,4 @@ directorist-listing-import/
 
 ---
 
-*Listing Importer v1.0.0 — Built for Directorist*
+*Listing Importer v1.1.1 — Built for Directorist*
