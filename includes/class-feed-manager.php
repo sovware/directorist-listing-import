@@ -53,6 +53,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return string  New feed ID
      */
     public static function add_feed( array $args ): string {
+        self::native_lock();
         $feeds = self::get_feeds();
 
         $feed = [
@@ -85,6 +86,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return bool
      */
     public static function update_feed( string $id, array $args ): bool {
+        self::native_lock();
         $feeds = self::get_feeds();
         $found = false;
 
@@ -107,6 +109,7 @@ class Directorist_Listing_Import_Feed_Manager {
             }
             if ( isset( $args['last_run'] ) ) $feed['last_run'] = absint( $args['last_run'] );
 
+            foreach ( [ 'mcp_actor', 'mcp_last_job' ] as $key ) { if ( array_key_exists( $key, $args ) ) { $feed[ $key ] = $args[ $key ]; } }
             $found = true;
             break;
         }
@@ -114,6 +117,7 @@ class Directorist_Listing_Import_Feed_Manager {
 
         if ( $found ) {
             update_option( DLI_OPTION_FEEDS, $feeds );
+            if ( class_exists( 'DLI_MCP_Sync' ) && array_intersect( array_keys( $args ), [ 'status', 'interval', 'sync_mode' ] ) ) { DLI_MCP_Sync::reschedule( $id ); }
         }
 
         return $found;
@@ -126,6 +130,7 @@ class Directorist_Listing_Import_Feed_Manager {
      * @return bool
      */
     public static function delete_feed( string $id ): bool {
+        self::native_lock();
         $feeds   = self::get_feeds();
         $initial = count( $feeds );
         $feeds   = array_values( array_filter( $feeds, fn( $f ) => $f['id'] !== $id ) );
@@ -133,6 +138,7 @@ class Directorist_Listing_Import_Feed_Manager {
         if ( count( $feeds ) === $initial ) return false;
 
         update_option( DLI_OPTION_FEEDS, $feeds );
+        wp_clear_scheduled_hook( 'dli_mcp_sync_feed', [ $id ] );
         return true;
     }
 
@@ -150,6 +156,7 @@ class Directorist_Listing_Import_Feed_Manager {
 
         $due = [];
         foreach ( self::get_feeds() as $feed ) {
+            if ( ! empty( $feed['mcp_actor'] ) ) continue; // Dedicated actor-bound staged worker owns these feeds.
             if ( ( $feed['status'] ?? '' ) !== 'active' ) continue;
             if ( ( $feed['sync_mode'] ?? 'sync' ) === 'one_time' || ( $feed['interval'] ?? '' ) === 'manual' ) continue;
 
@@ -166,5 +173,9 @@ class Directorist_Listing_Import_Feed_Manager {
 
     private static function generate_id(): string {
         return wp_generate_uuid4();
+    }
+
+    private static function native_lock(): void {
+        \DLI_MCP_Compatibility::native_lock();
     }
 }

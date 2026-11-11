@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       Listing Importer
+ * Plugin Name:       Directorist - Listing Importer
  * Plugin URI:        https://directorist.com/
  * Description:       Bulk import listings from Google Business Profile data and legal RSS/feed sources.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Author:            wpwax
  * Author URI:        https://wpwax.com/
  * License:           GPL-2.0+
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
-define( 'DLI_VERSION',   '1.1.0' );
+define( 'DLI_VERSION',   '1.1.1' );
 define( 'DLI_FILE',      __FILE__ );
 define( 'DLI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DLI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,24 @@ require_once DLIG_DIR . 'includes/class-importer.php';
 require_once DLIG_DIR . 'includes/class-admin-page.php';
 require_once DLIG_DIR . 'includes/class-ajax-import.php';
 require_once DLIG_DIR . 'includes/class-plugin.php';
+
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-compatibility.php';
+add_action( 'admin_notices', [ 'DLI_MCP_Compatibility', 'admin_notice' ] );
+
+// Registration is independent of the current actor and never upgrades storage.
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-store.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-source.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-listing-writer.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-configuration.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-sync.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-google.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-service.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-schema.php';
+require_once DLI_PLUGIN_DIR . 'includes/mcp/class-integration.php';
+add_action( 'admin_init', [ 'DLI_MCP_Store', 'upgrade' ] );
+add_action( 'directorist_mcp_register', [ 'DLI_MCP_Integration', 'register' ] );
+add_action( 'dli_mcp_worker', [ 'DLI_MCP_Service', 'work' ] );
+add_action( 'dli_mcp_sync_feed', [ 'DLI_MCP_Sync', 'tick' ] );
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 add_action( 'plugins_loaded', 'directorist_listing_import_init' );
@@ -128,10 +146,14 @@ function directorist_listing_import_migrate_legacy_options(): void {
 register_activation_hook( DLI_FILE, 'directorist_listing_import_activate' );
 function directorist_listing_import_activate() {
     directorist_listing_import_migrate_legacy_options();
+    DLI_MCP_Store::upgrade();
 
     if ( class_exists( '\DLIG\Installer' ) ) {
         \DLIG\Installer::activate();
     }
+
+    foreach ( Directorist_Listing_Import_Feed_Manager::get_feeds() as $feed ) { if ( ! empty( $feed['mcp_actor'] ) ) { DLI_MCP_Sync::reschedule( $feed['id'] ); } }
+    if ( '' === DLI_MCP_Compatibility::reason() && DLI_MCP_Store::ready() ) { foreach ( DLI_MCP_Store::rows( 'job', 'admin' ) as $job ) { if ( in_array( $job['status'], [ 'queued', 'running', 'stop-requested' ], true ) && ! wp_next_scheduled( 'dli_mcp_worker', [ $job['job_id'] ] ) ) { wp_schedule_single_event( time() + 1, 'dli_mcp_worker', [ $job['job_id'] ] ); } } }
 
     // Seed default settings
     if ( ! get_option( DLI_OPTION_SETTINGS ) ) {
@@ -166,6 +188,8 @@ function directorist_listing_import_activate() {
 // ── Deactivation ─────────────────────────────────────────────────────────────
 register_deactivation_hook( DLI_FILE, 'directorist_listing_import_deactivate' );
 function directorist_listing_import_deactivate() {
+    wp_unschedule_hook( 'dli_mcp_sync_feed' );
+    wp_unschedule_hook( 'dli_mcp_worker' );
     foreach ( [ DLI_CRON_HOOK, DLI_LEGACY_CRON_HOOK ] as $hook ) {
         $timestamp = wp_next_scheduled( $hook );
         if ( $timestamp ) {

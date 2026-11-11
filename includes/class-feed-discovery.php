@@ -152,6 +152,17 @@ class Directorist_Listing_Import_Feed_Discovery {
         ];
     }
 
+    /** Map an already parsed item without remote access or local writes. */
+    public static function map_entry( $entry ): array {
+        $title = wp_strip_all_tags( $entry->get_title() ?? '' );
+        $description = wp_strip_all_tags( $entry->get_description() ?? '' );
+        $permalink = esc_url_raw( $entry->get_permalink() ?? '' );
+        $text = trim( $title . ' ' . $description );
+        return [ 'title' => $title, 'description' => $description, 'permalink' => $permalink,
+            'address' => self::extract_address( $entry, $text ), 'phone' => self::extract_phone( $text ),
+            'email' => self::extract_email( $text ), 'website' => self::extract_website( $description, $permalink ) ];
+    }
+
     private static function is_valid_feed( string $url ): bool {
         if ( ! function_exists( 'fetch_feed' ) ) {
             require_once ABSPATH . WPINC . '/feed.php';

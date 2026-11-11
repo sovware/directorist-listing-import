@@ -19,6 +19,7 @@ class Directorist_Listing_Import_Scheduler {
      * Loop through feeds that are due and run each one.
      */
     public static function run_due_feeds(): void {
+        \DLI_MCP_Compatibility::native_lock();
         $due_feeds = Directorist_Listing_Import_Feed_Manager::get_due_feeds();
 
         if ( empty( $due_feeds ) ) return;
